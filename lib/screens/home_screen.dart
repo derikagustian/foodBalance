@@ -32,22 +32,45 @@ class HomePage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  // --- HEADER DENGAN PROFIL ---
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        "Hallo",
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Hallo",
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                          Text(
+                            tanggalFormatted,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        tanggalFormatted,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.black,
+                      GestureDetector(
+                        onTap: () {
+                          print("Profile Clicked");
+                        },
+                        child: Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.grey[200],
+                            image: const DecorationImage(
+                              image: AssetImage("assets/images/profile.png"),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -312,17 +335,18 @@ class HomePage extends StatelessWidget {
   Widget _buildFoodDiarySection(UserProvider prov) {
     if (prov.foodDiary.isEmpty) {
       return EntranceFaded(
-        delay: Duration(milliseconds: 1200),
+        key: const ValueKey('empty_state_card'),
+        delay: const Duration(milliseconds: 1200),
         child: _buildEmptyFoodCard(),
       );
     }
+
     return Column(
       children: List.generate(prov.foodDiary.length, (index) {
         final item = prov.foodDiary[index];
-        final int foodId = item['id'];
-
+        // Gunakan prefix 'food_' agar ID database tidak bentrok dengan ID lain
         return _AnimatedFoodCard(
-          key: ValueKey(foodId),
+          key: ValueKey('food_${item['id']}'),
           item: item,
           prov: prov,
           index: index,
@@ -580,13 +604,19 @@ class _AnimatedFoodCard extends StatefulWidget {
 
 class _AnimatedFoodCardState extends State<_AnimatedFoodCard> {
   bool _isVisible = false;
+  bool _isReady = false;
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(Duration(milliseconds: widget.index * 150), () {
+    _startAnimation();
+  }
+
+  void _startAnimation() {
+    Future.delayed(Duration(milliseconds: 1200 + (widget.index * 150)), () {
       if (mounted) {
         setState(() {
+          _isReady = true;
           _isVisible = true;
         });
       }
@@ -596,10 +626,22 @@ class _AnimatedFoodCardState extends State<_AnimatedFoodCard> {
   @override
   Widget build(BuildContext context) {
     return VisibilityDetector(
-      key: widget.key!,
+      // Tambahkan index ke dalam key agar Flutter merender ulang jika urutan berubah
+      key: widget.key ?? ValueKey('card_${widget.item['id']}_${widget.index}'),
       onVisibilityChanged: (info) {
-        if (info.visibleFraction > 0.2 && !_isVisible) {
-          setState(() => _isVisible = true);
+        // Jika sedang transisi halaman, info.visibleFraction mungkin 1.0 tapi
+        // kita ingin memastikan animasi tetap merespon.
+        if (!_isReady) return;
+
+        if (info.visibleFraction > 0.1) {
+          if (mounted && !_isVisible) {
+            setState(() => _isVisible = true);
+          }
+        } else if (info.visibleFraction <= 0.05) {
+          // Gunakan threshold kecil daripada 0 pas
+          if (mounted && _isVisible) {
+            setState(() => _isVisible = false);
+          }
         }
       },
       child: AnimatedOpacity(
@@ -608,7 +650,7 @@ class _AnimatedFoodCardState extends State<_AnimatedFoodCard> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 500),
           curve: Curves.easeOutCubic,
-          transform: Matrix4.translationValues(0, _isVisible ? 0 : 30, 0),
+          transform: Matrix4.translationValues(0, _isVisible ? 0 : 20, 0),
           margin: const EdgeInsets.only(bottom: 10),
           child: _buildItemContent(),
         ),
@@ -639,7 +681,8 @@ class _AnimatedFoodCardState extends State<_AnimatedFoodCard> {
           ],
         ),
         child: ListTile(
-          isThreeLine: true,
+          isThreeLine:
+              true, // Tambahkan ini agar layout lebih rapi untuk 3 baris
           leading: const CircleAvatar(
             backgroundColor: Color(0xFF2E7D32),
             child: Icon(Icons.restaurant, color: Colors.white, size: 18),
@@ -651,39 +694,35 @@ class _AnimatedFoodCardState extends State<_AnimatedFoodCard> {
                 widget.item['name'],
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              Text(
-                widget.item['category'].toString().toUpperCase(),
-                style: const TextStyle(
-                  color: Color(0xFF2E7D32),
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
+              // --- PENAMBAHAN CATEGORY ---
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                margin: const EdgeInsets.only(top: 2, bottom: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2E7D32).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  widget.item['category'].toString().toUpperCase(),
+                  style: const TextStyle(
+                    color: Color(0xFF2E7D32),
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
             ],
           ),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 4.0),
-            child: Text(
-              "${widget.item['carb']}g Karbo • ${widget.item['protein']}g Prot • ${widget.item['fat']}g Lemak",
-              style: const TextStyle(fontSize: 12, color: Colors.black54),
-            ),
+          subtitle: Text(
+            "${widget.item['carb']}g Karbo • ${widget.item['protein']}g Protein",
+            style: const TextStyle(fontSize: 12),
           ),
-          trailing: Padding(
-            padding: const EdgeInsets.only(top: 18.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  "+${widget.item['calories']} kkal",
-                  style: const TextStyle(
-                    color: Colors.orange,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
+          trailing: Text(
+            "+${widget.item['calories']} kkal",
+            style: const TextStyle(
+              color: Colors.orange,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ),

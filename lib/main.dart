@@ -11,6 +11,7 @@ import 'package:foodbalance/providers/user_provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +21,7 @@ void main() async {
       ? const LoginPage()
       : const MainNavigation();
   await initializeDateFormatting('id_ID', null);
+  VisibilityDetectorController.instance.updateInterval = Duration.zero;
   runApp(
     MultiProvider(
       providers: [ChangeNotifierProvider(create: (_) => UserProvider())],
