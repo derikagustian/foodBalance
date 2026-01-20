@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:foodbalance/providers/user_provider.dart';
+import 'package:foodbalance/widgets/slideUp_animation.dart';
 
 class WeeklyPage extends StatefulWidget {
   const WeeklyPage({super.key});
@@ -67,41 +68,43 @@ class _WeeklyPageState extends State<WeeklyPage>
               ),
               const SizedBox(height: 20),
 
-              // Dashboard Utama (Streak & Aktivitas)
-              _buildMainDashboard(userProv),
+              EntranceFaded(
+                delay: const Duration(milliseconds: 200),
+                child: _buildMainDashboard(userProv),
+              ),
 
               const SizedBox(height: 25),
 
-              // Tab Bar dengan efek slide
-              _buildCustomTabBar(),
+              EntranceFaded(
+                delay: const Duration(milliseconds: 400),
+                child: _buildCustomTabBar(),
+              ),
 
               const SizedBox(height: 25),
 
-              // IndexedStack(
-              //   index: _tabController.index,
-              //   children: [
-              //     _buildRingkasanContent(), // Muncul jika pilih "Ringkasan"
-              //     _buildGrafikPlaceholder(), // Muncul jika pilih "Grafik"
-              //     _buildAIPlaceholder(), // Muncul jika pilih "AI"
-              //   ],
-              // ),
-
-              // Kartu Statistik Bawah
-              // Kartu Statistik Bawah
               Row(
                 children: [
-                  _buildStatCard(
-                    // Mengambil rata-rata dari provider
-                    userProv.averageCalories.toStringAsFixed(0),
-                    "Rata-rata Kalori Harian",
-                    Icons.stacked_line_chart,
+                  // Expanded membungkus widget animasi agar Row tahu pembagian ruangnya
+                  Expanded(
+                    child: EntranceFaded(
+                      delay: const Duration(milliseconds: 600),
+                      child: _buildStatCard(
+                        userProv.averageCalories.toStringAsFixed(0),
+                        "Rata-rata Kalori Harian",
+                        Icons.stacked_line_chart,
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 15),
-                  _buildStatCard(
-                    // Mengambil total item dari provider
-                    userProv.totalFoodItems.toString(),
-                    "Makanan Tercatat",
-                    Icons.restaurant_menu,
+                  Expanded(
+                    child: EntranceFaded(
+                      delay: const Duration(milliseconds: 600),
+                      child: _buildStatCard(
+                        userProv.totalFoodItems.toString(),
+                        "Makanan Tercatat",
+                        Icons.restaurant_menu,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -125,20 +128,18 @@ class _WeeklyPageState extends State<WeeklyPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Bagian Atas: Kartu Streak
           Padding(
             padding: const EdgeInsets.all(15.0),
             child: Row(
               children: [
                 _buildLargeStreakCard(
-                  userProv.currentStreak
-                      .toString(), // Mengambil streak dari Provider
+                  userProv.currentStreak.toString(),
                   "Streak Saat Ini",
                   Icons.local_fire_department,
                 ),
                 const SizedBox(width: 12),
                 _buildLargeStreakCard(
-                  "0", // Bisa Anda tambahkan logika longestStreak nanti
+                  "0",
                   "Streak Terpanjang",
                   Icons.emoji_events_outlined,
                 ),
@@ -222,95 +223,35 @@ class _WeeklyPageState extends State<WeeklyPage>
     );
   }
 
-  // Widget _buildRingkasanContent() {
-  //   return Column(
-  //     children: [
-  //       Row(
-  //         children: [
-  //           _buildStatCard("1,200", "Target Kalori", Icons.flag),
-  //           const SizedBox(width: 15),
-  //           _buildStatCard("850", "Kalori Masuk", Icons.fastfood),
-  //         ],
-  //       ),
-  //       // Jika ingin menambah baris stat lagi di bawahnya
-  //       const SizedBox(height: 15),
-  //       Row(
-  //         children: [
-  //           _buildStatCard("75%", "Protein", Icons.fitness_center),
-  //           const SizedBox(width: 15),
-  //           _buildStatCard("2L", "Air Minum", Icons.water_drop),
-  //         ],
-  //       ),
-  //     ],
-  //   );
-  // }
-
-  // Widget _buildGrafikPlaceholder() {
-  //   return Container(
-  //     height: 200,
-  //     decoration: BoxDecoration(
-  //       color: accentGreen.withOpacity(0.2),
-  //       borderRadius: BorderRadius.circular(20),
-  //     ),
-  //     child: const Center(
-  //       child: Text(
-  //         "Grafik Konsumsi Mingguan Akan Muncul di Sini",
-  //         textAlign: TextAlign.center,
-  //         style: TextStyle(color: primaryGreen),
-  //       ),
-  //     ),
-  //   );
-  // }
-
-  // Widget _buildAIPlaceholder() {
-  //   return Container(
-  //     padding: const EdgeInsets.all(20),
-  //     decoration: BoxDecoration(
-  //       color: Colors.white,
-  //       borderRadius: BorderRadius.circular(20),
-  //       border: Border.all(color: primaryGreen.withOpacity(0.3)),
-  //     ),
-  //     child: Row(
-  //       children: const [
-  //         Icon(Icons.auto_awesome, color: Colors.amber),
-  //         SizedBox(width: 10),
-  //         Expanded(
-  //           child: Text(
-  //             "AI: Berdasarkan data minggu ini, tingkatkan konsumsi serat Anda.",
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
   Widget _buildStatCard(String value, String label, IconData icon) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 25, horizontal: 10),
-        decoration: BoxDecoration(
-          color: accentGreen,
-          borderRadius: BorderRadius.circular(25),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: Colors.white70, size: 35),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 35,
-                fontWeight: FontWeight.bold,
-              ),
+    // Hapus Expanded di sini agar fungsi ini murni mengembalikan Container
+    return Container(
+      width: double.infinity, // Paksa container memenuhi ruang Expanded di atas
+      padding: const EdgeInsets.symmetric(vertical: 25, horizontal: 10),
+      decoration: BoxDecoration(
+        color: accentGreen,
+        borderRadius: BorderRadius.circular(25),
+      ),
+      child: Column(
+        mainAxisSize:
+            MainAxisSize.min, // Agar column tidak memaksa tinggi berlebih
+        children: [
+          Icon(icon, color: Colors.white70, size: 35),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 35,
+              fontWeight: FontWeight.bold,
             ),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70, fontSize: 11),
-            ),
-          ],
-        ),
+          ),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white70, fontSize: 11),
+          ),
+        ],
       ),
     );
   }

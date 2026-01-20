@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:foodbalance/providers/user_provider.dart';
+import 'package:foodbalance/widgets/slideUp_animation.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -54,15 +55,24 @@ class _ProfilePageState extends State<ProfilePage> {
               const SizedBox(height: 20),
 
               // Kartu Informasi Pribadi
-              _buildPersonalInfoCard(),
+              EntranceFaded(
+                delay: const Duration(milliseconds: 200),
+                child: _buildPersonalInfoCard(),
+              ),
               const SizedBox(height: 20),
 
               // Kartu Tujuan (Goal)
-              _buildGoalSection(),
+              EntranceFaded(
+                delay: const Duration(milliseconds: 400),
+                child: _buildGoalSection(),
+              ),
               const SizedBox(height: 25),
 
               // Tombol Simpan & Edit
-              _buildFooterButtons(),
+              EntranceFaded(
+                delay: const Duration(milliseconds: 600),
+                child: _buildFooterButtons(),
+              ),
               const SizedBox(height: 100),
             ],
           ),
