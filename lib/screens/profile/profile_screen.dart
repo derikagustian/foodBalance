@@ -1,0 +1,441 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:foodbalance/providers/user_provider.dart';
+import 'package:foodbalance/widgets/slideUp_animation.dart';
+
+class ProfilePage extends StatefulWidget {
+  const ProfilePage({super.key});
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  final TextEditingController _usiaController = TextEditingController(text: "");
+  final TextEditingController _tinggiController = TextEditingController(
+    text: "",
+  );
+  final TextEditingController _beratController = TextEditingController(
+    text: "",
+  );
+  String? _jenisKelamin;
+
+  bool _isEditable = false;
+  int _selectedGoalIndex = 1;
+
+  static const Color primaryGreen = Color(0xFF2E7D32);
+  static const Color backgroundYellow = Color(0xFFFDF7C3);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: backgroundYellow,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Profil",
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1B5E20),
+                ),
+              ),
+              const Text(
+                "Kelola Informasi Pribadi Anda",
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Color(0xFF1B5E20),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Kartu Informasi Pribadi
+              EntranceFaded(
+                delay: const Duration(milliseconds: 200),
+                child: _buildPersonalInfoCard(),
+              ),
+              const SizedBox(height: 20),
+
+              // Kartu Tujuan (Goal)
+              EntranceFaded(
+                delay: const Duration(milliseconds: 400),
+                child: _buildGoalSection(),
+              ),
+              const SizedBox(height: 25),
+
+              // Tombol Simpan & Edit
+              EntranceFaded(
+                delay: const Duration(milliseconds: 600),
+                child: _buildFooterButtons(),
+              ),
+              const SizedBox(height: 100),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPersonalInfoCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: primaryGreen,
+        borderRadius: BorderRadius.circular(25),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.person_outline, color: Colors.white, size: 28),
+              SizedBox(width: 10),
+              Text(
+                "Informasi Pribadi",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildInputRow("Usia", "Tahun", _usiaController),
+          _buildDropdownRow(),
+          _buildInputRow("Tinggi Badan", "cm", _tinggiController),
+          _buildInputRow("Berat Badan", "kg", _beratController),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputRow(
+    String label,
+    String suffix,
+    TextEditingController controller,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      enabled: _isEditable,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _isEditable ? Colors.white : Colors.white60,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      decoration: InputDecoration(
+                        border: InputBorder.none,
+                        isDense: true,
+                        hintText: "",
+                        hintStyle: TextStyle(
+                          color: Colors.white.withOpacity(0.2),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    suffix,
+                    style: TextStyle(
+                      color: _isEditable ? Colors.white70 : Colors.white38,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropdownRow() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          const Expanded(
+            flex: 2,
+            child: Text(
+              "Jenis Kelamin",
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _jenisKelamin,
+                  onChanged: _isEditable
+                      ? (String? newValue) {
+                          setState(() {
+                            _jenisKelamin = newValue;
+                          });
+                        }
+                      : null,
+                  hint: const Center(
+                    child: Text(
+                      "Pilih",
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 14,
+                        fontWeight: FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                  dropdownColor: const Color(0xFF1B4D3E),
+                  icon: const Icon(
+                    Icons.keyboard_arrow_down,
+                    color: Colors.white,
+                  ),
+                  isExpanded: true,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  items: <String>['Laki - laki', 'Perempuan']
+                      .map<DropdownMenuItem<String>>((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Center(child: Text(value)),
+                        );
+                      })
+                      .toList(),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalSection() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+      decoration: BoxDecoration(
+        color: primaryGreen,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.track_changes, color: Colors.white, size: 32),
+              SizedBox(width: 12),
+              Text(
+                "Tujuan",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              double itemWidth = (constraints.maxWidth - 20) / 3;
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildGoalItem(
+                    "Turun BB",
+                    "-500 kcal",
+                    Icons.trending_down,
+                    0,
+                    itemWidth,
+                  ),
+                  _buildGoalItem(
+                    "Jaga BB",
+                    "Tetap Ideal",
+                    Icons.balance,
+                    1,
+                    itemWidth,
+                  ),
+                  _buildGoalItem(
+                    "Naik BB",
+                    "+500 kcal",
+                    Icons.trending_up,
+                    2,
+                    itemWidth,
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalItem(
+    String title,
+    String subtitle,
+    IconData icon,
+    int index,
+    double width,
+  ) {
+    bool isActive = _selectedGoalIndex == index;
+
+    return GestureDetector(
+      onTap: _isEditable
+          ? () => setState(() => _selectedGoalIndex = index)
+          : null,
+      child: Container(
+        width: width,
+        padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isActive
+              ? const Color(0xFF1B5E20)
+              : Colors.white.withOpacity(0.4),
+          borderRadius: BorderRadius.circular(20),
+          border: isActive ? Border.all(color: Colors.white, width: 2) : null,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 32),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 10),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooterButtons() {
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: () {
+            if (_isEditable) {
+              double bb = double.tryParse(_beratController.text) ?? 0;
+              double tb = double.tryParse(_tinggiController.text) ?? 0;
+              int usia = int.tryParse(_usiaController.text) ?? 0;
+              String jk = _jenisKelamin ?? "Laki - laki";
+
+              List<String> goals = ["Turun BB", "Jaga BB", "Naik BB"];
+              String goal = goals[_selectedGoalIndex];
+
+              Provider.of<UserProvider>(
+                context,
+                listen: false,
+              ).kalkulasiDanSimpan(
+                bb: bb,
+                tb: tb,
+                age: usia,
+                jk: jk,
+                goal: goal,
+              );
+
+              // 3. Matikan mode edit (Update UI)
+              setState(() => _isEditable = false);
+
+              // Tampilkan Notifikasi
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text("Informasi disimpan & Kalori dihitung!"),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  margin: const EdgeInsets.only(bottom: 5, right: 20, left: 20),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          },
+          child: _buildLongButton(
+            "Simpan",
+            Icons.bookmark_border,
+            _isEditable ? primaryGreen : Colors.grey,
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Tombol Edit tetap sama fungsinya
+        GestureDetector(
+          onTap: () => setState(() => _isEditable = true),
+          child: _buildLongButton("Edit", Icons.edit_note, primaryGreen),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLongButton(String text, IconData icon, Color color) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: Colors.white, size: 22),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

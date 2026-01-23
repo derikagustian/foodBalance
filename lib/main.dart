@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import './screens/home_screen.dart';
-import './screens/daily_screen.dart';
-import './screens/profile_screen.dart';
-import './screens/weekly_screen.dart';
-import './screens/login_screen.dart';
-import 'screens/barcodeScan_screen.dart';
+import 'screens/home/home_screen.dart';
+import 'screens/diary/daily/daily_screen.dart';
+import 'screens/profile/profile_screen.dart';
+import 'screens/diary/weekly/weekly_screen.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/scan/barcodeScan_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:foodbalance/providers/user_provider.dart';
 import 'package:firebase_core/firebase_core.dart';
