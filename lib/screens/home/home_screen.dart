@@ -110,12 +110,6 @@ class _Header extends StatelessWidget {
             Text(tanggal, style: const TextStyle(color: Colors.black54)),
           ],
         ),
-        CircleAvatar(
-          radius: 25,
-          backgroundImage: photoUrl != null
-              ? NetworkImage(photoUrl!)
-              : const AssetImage("assets/images/profile.png") as ImageProvider,
-        ),
       ],
     );
   }

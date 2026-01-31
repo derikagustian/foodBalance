@@ -6,15 +6,19 @@ import 'screens/profile/profile_screen.dart';
 import 'screens/diary/weekly/weekly_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/scan/barcodeScan_screen.dart';
+import 'package:foodbalance/screens/splash_screen.dart';
+
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:foodbalance/providers/user_provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'package:visibility_detector/visibility_detector.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   Widget initialScreen = FirebaseAuth.instance.currentUser == null
@@ -38,7 +42,7 @@ class CalorieApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true),
-      home: const LoginPage(),
+      home: const SplashScreen(),
     );
   }
 }

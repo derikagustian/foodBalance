@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:foodbalance/providers/user_provider.dart';
 import 'package:foodbalance/widgets/slideUp_animation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -28,6 +29,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final String? photoUrl = user?.photoURL;
     return Scaffold(
       backgroundColor: backgroundYellow,
       body: SafeArea(
@@ -36,21 +39,39 @@ class _ProfilePageState extends State<ProfilePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                "Profil",
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1B5E20),
-                ),
-              ),
-              const Text(
-                "Kelola Informasi Pribadi Anda",
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFF1B5E20),
-                  fontWeight: FontWeight.w500,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        "Profil",
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1B5E20),
+                        ),
+                      ),
+                      Text(
+                        "Kelola Informasi Pribadi Anda",
+                        style: TextStyle(
+                          fontSize: 14, // Sedikit diperkecil agar pas
+                          color: Color(0xFF1B5E20),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  // MASUKKAN KODE CircleAvatar DI SINI
+                  CircleAvatar(
+                    radius: 25,
+                    backgroundImage: photoUrl != null
+                        ? NetworkImage(photoUrl!)
+                        : const AssetImage("assets/images/profile.png")
+                              as ImageProvider,
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
 
@@ -66,7 +87,14 @@ class _ProfilePageState extends State<ProfilePage> {
                 delay: const Duration(milliseconds: 400),
                 child: _buildGoalSection(),
               ),
-              const SizedBox(height: 25),
+              const SizedBox(height: 20),
+
+              // Letakkan ini di Column dalam build() setelah GoalSection
+              EntranceFaded(
+                delay: const Duration(milliseconds: 500),
+                child: _buildAchievementTarget(),
+              ),
+              const SizedBox(height: 20),
 
               // Tombol Simpan & Edit
               EntranceFaded(
@@ -432,6 +460,58 @@ class _ProfilePageState extends State<ProfilePage> {
               color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAchievementTarget() {
+    // Mengambil data estimasi dari Provider
+    final estimasi = context.watch<UserProvider>().estimasiWaktu;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: primaryGreen.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            "Target Capaian",
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: primaryGreen,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.timer_outlined, color: Colors.orange, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                estimasi,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          const Text(
+            "*Estimasi berdasarkan progres sehat 0.5kg/minggu",
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey,
+              fontStyle: FontStyle.italic,
             ),
           ),
         ],
