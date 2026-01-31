@@ -49,4 +49,10 @@ class DBHelper {
     Database db = await database;
     return await db.delete('food_diary', where: 'id = ?', whereArgs: [id]);
   }
+
+  // FUNGSI RESET DELETE
+  Future<int> deleteAllFood() async {
+    final db = await database;
+    return await db.delete('food_diary');
+  }
 }

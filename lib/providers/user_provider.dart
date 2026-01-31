@@ -248,4 +248,38 @@ class UserProvider extends ChangeNotifier {
         ? "${monday.day} - ${sunday.day} ${months[monday.month - 1]}"
         : "${monday.day} ${months[monday.month - 1].substring(0, 3)} - ${sunday.day} ${months[sunday.month - 1].substring(0, 3)}";
   }
+
+  // ==========================================
+  // 8. LOGIKA RESET (LOGOUT)
+  // ==========================================
+
+  void resetUser() {
+    // Reset Data Makanan (UI State)
+    _foodDiary = [];
+
+    // Reset Profil & Target
+    berat = 0;
+    tinggi = 0;
+    usia = 0;
+    jenisKelamin = "";
+    tujuan = "";
+
+    // Reset Hasil Kalkulasi
+    _caloriesTarget = 0;
+    _estimasiWaktu = "-";
+
+    // Reset Mood
+    _selectedMood = "";
+    _hoveredMood = "";
+
+    // Beritahu semua widget untuk update tampilan jadi kosong
+    notifyListeners();
+  }
+
+  // JIKA ingin menghapus SEMUA riwayat makan di HP saat logout:
+  Future<void> clearAllData() async {
+    await _dbHelper.deleteAllFood();
+    resetUser();
+    await loadData();
+  }
 }

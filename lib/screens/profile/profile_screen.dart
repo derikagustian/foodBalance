@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:foodbalance/providers/user_provider.dart';
 import 'package:foodbalance/widgets/slideUp_animation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../profile/widgets/profile_menu_overlay.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -63,13 +64,19 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ],
                   ),
-                  // MASUKKAN KODE CircleAvatar DI SINI
-                  CircleAvatar(
-                    radius: 25,
-                    backgroundImage: photoUrl != null
-                        ? NetworkImage(photoUrl!)
-                        : const AssetImage("assets/images/profile.png")
-                              as ImageProvider,
+                  // Cari bagian CircleAvatar di Row Header kamu, ubah menjadi:
+                  GestureDetector(
+                    onTap: () => _showProfileDetail(),
+                    child: Hero(
+                      tag: 'profilePic', // Hero animation agar transisi halus
+                      child: CircleAvatar(
+                        radius: 25,
+                        backgroundImage: photoUrl != null
+                            ? NetworkImage(photoUrl!)
+                            : const AssetImage("assets/images/profile.png")
+                                  as ImageProvider,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -106,6 +113,35 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showProfileDetail() {
+    final user = FirebaseAuth.instance.currentUser;
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true, // Klik di bagian gelap untuk menutup
+      barrierLabel: "Dismiss",
+      barrierColor: Colors.black.withOpacity(0.5), // Efek gelap di kiri
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, anim1, anim2) {
+        return ProfileMenuOverlay(
+          photoUrl: user?.photoURL,
+          displayName: user?.displayName,
+          email: user?.email,
+        );
+      },
+      transitionBuilder: (context, anim1, anim2, child) {
+        // Animasi slide masuk dari kanan
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: const Offset(0, 0),
+          ).animate(CurvedAnimation(parent: anim1, curve: Curves.easeOut)),
+          child: child,
+        );
+      },
     );
   }
 

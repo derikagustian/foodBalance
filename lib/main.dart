@@ -42,7 +42,13 @@ class CalorieApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true),
-      home: const SplashScreen(),
+      initialRoute: '/',
+      // Daftarkan rute-rute di sini
+      routes: {
+        '/': (context) => const SplashScreen(),
+        '/login': (context) => const LoginPage(),
+        '/main': (context) => const MainNavigation(),
+      },
     );
   }
 }
