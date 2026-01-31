@@ -20,6 +20,7 @@ class ProfileMenuOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
     return Align(
       alignment: Alignment.centerRight,
       child: Material(
@@ -52,7 +53,13 @@ class ProfileMenuOverlay extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          displayName ?? "User",
+                          // Cek satu-satu: display name ada? kalau tidak, apakah dia anonim?
+                          user?.displayName != null &&
+                                  user!.displayName!.isNotEmpty
+                              ? user.displayName!
+                              : (user?.isAnonymous == true
+                                    ? "User Tamu"
+                                    : "Pengguna"),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 20,
@@ -60,7 +67,12 @@ class ProfileMenuOverlay extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          email ?? "user@email.com",
+                          // Cek email: kalau kosong dan anonim, beri tahu belum tertaut
+                          user?.email != null && user!.email!.isNotEmpty
+                              ? user.email!
+                              : (user?.isAnonymous == true
+                                    ? "Akun Belum Tertaut"
+                                    : "No Email"),
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 12,
@@ -73,6 +85,24 @@ class ProfileMenuOverlay extends StatelessWidget {
                     child: ListView(
                       padding: const EdgeInsets.only(left: 15, top: 20),
                       children: [
+                        _buildMenuItem(
+                          Icons.link,
+                          "Tautkan Akun",
+                          onTap: () {
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user != null && user.isAnonymous) {
+                              _handleLinkAccount(context);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    "Akun Anda sudah tertaut dengan Google.",
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                        ),
                         _buildMenuItem(
                           Icons.history,
                           "Riwayat Makan",
@@ -88,6 +118,7 @@ class ProfileMenuOverlay extends StatelessWidget {
                           "Pengaturan",
                           onTap: () {},
                         ),
+
                         const Divider(),
                         _buildMenuItem(
                           Icons.logout,
@@ -197,7 +228,9 @@ class ProfileMenuOverlay extends StatelessWidget {
           TextButton(
             onPressed: () async {
               Navigator.pop(context); // Tutup dialog
-              _performLogout(context); // Panggil fungsi hapus semua & logout
+              await _performLogout(
+                context,
+              ); // Panggil fungsi hapus semua & logout
             },
             child: const Text(
               "Hapus & Keluar",
