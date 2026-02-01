@@ -1,6 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:foodbalance/providers/user_provider.dart';
-import 'package:foodbalance/screens/auth/login_screen.dart';
 import 'package:google_sign_in/google_sign_in.dart' as google_auth;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';

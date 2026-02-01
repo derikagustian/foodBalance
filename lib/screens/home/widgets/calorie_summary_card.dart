@@ -82,6 +82,7 @@ class _CalorieCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isGoalReached = remaining <= 0;
     final progress = target > 0 ? (remaining / target).clamp(0.0, 1.0) : 0.0;
 
     return Expanded(
@@ -93,14 +94,17 @@ class _CalorieCircle extends StatelessWidget {
             height: 100,
             child: TweenAnimationBuilder<double>(
               key: animationKey,
-              tween: Tween<double>(begin: 0.0, end: progress),
-              duration: const Duration(milliseconds: 1500),
-              curve: Curves.easeInOutCubic,
+              tween: Tween<double>(
+                begin: 0.0,
+                end: isGoalReached ? 1.0 : progress,
+              ),
+              duration: const Duration(milliseconds: 1200),
+              curve: Curves.easeOutCubic,
               builder: (_, value, __) {
                 return CircularProgressIndicator(
                   value: value,
                   strokeWidth: 10,
-                  color: Colors.white,
+                  color: isGoalReached ? Colors.orangeAccent : Colors.white,
                   backgroundColor: Colors.white.withOpacity(0.2),
                   strokeCap: StrokeCap.round,
                 );
@@ -110,23 +114,22 @@ class _CalorieCircle extends StatelessWidget {
           TweenAnimationBuilder<double>(
             key: animationKey,
             tween: Tween<double>(begin: 0, end: remaining),
-            duration: const Duration(milliseconds: 1500),
-            curve: Curves.easeInOutCubic,
+            duration: const Duration(milliseconds: 1200),
             builder: (_, value, __) {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    value.toInt().toString(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
+                    isGoalReached ? "DONE" : value.toInt().toString(),
+                    style: TextStyle(
+                      color: isGoalReached ? Colors.orangeAccent : Colors.white,
+                      fontSize: isGoalReached ? 16 : 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const Text(
-                    "Sisa kkal",
-                    style: TextStyle(color: Colors.white70, fontSize: 8),
+                  Text(
+                    isGoalReached ? "Tercapai!" : "Sisa kkal",
+                    style: const TextStyle(color: Colors.white70, fontSize: 8),
                   ),
                 ],
               );

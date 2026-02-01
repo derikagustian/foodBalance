@@ -1,4 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:provider/provider.dart';
@@ -18,15 +22,71 @@ class _AiScanPageState extends State<AiScanPage> {
 
   void _pickImage(ImageSource source) async {
     final XFile? photo = await _picker.pickImage(source: source);
+
     if (photo != null) {
       setState(() {
         _image = File(photo.path);
         _isLoading = true;
       });
-      // Lanjutkan proses analisis AI...
-      await Future.delayed(const Duration(seconds: 2));
-      setState(() => _isLoading = false);
-      _showResultSheet("Nasi Goreng Ayam", 450, 25, 15, 45);
+
+      try {
+        final apiKey = dotenv.env['GEMINI_API_KEY'] ?? "";
+
+        final model = GenerativeModel(
+          model: 'gemini-2.5-flash-lite',
+          apiKey: apiKey,
+        );
+
+        final imageBytes = await photo.readAsBytes();
+
+        final prompt = TextPart("""
+          Analisis gambar makanan ini dengan sangat teliti.
+          Taksir porsinya dan berikan estimasi nutrisi.
+          Berikan jawaban HANYA dalam format JSON mentah tanpa penjelasan apapun:
+          {
+            "name": "nama makanan",
+            "calories": 0,
+            "protein": 0,
+            "fat": 0,
+            "carb": 0
+          }
+        """);
+
+        // Kirim ke Gemini
+        final response = await model.generateContent([
+          Content.multi([prompt, DataPart('image/jpeg', imageBytes)]),
+        ]);
+
+        final responseText = response.text ?? "";
+
+        // Bersihkan teks dari Markdown jika AI menyertakan ```json ... ```
+        final cleanJson = responseText
+            .replaceAll('```json', '')
+            .replaceAll('```', '')
+            .trim();
+
+        // Parsing JSON ke Map
+        final Map<String, dynamic> data = jsonDecode(cleanJson);
+
+        setState(() => _isLoading = false);
+
+        // Tampilkan hasil asli dari AI ke dalam Bottom Sheet
+        _showResultSheet(
+          data['name'] ?? "Tidak Terdeteksi",
+          (data['calories'] ?? 0).toInt(),
+          (data['protein'] ?? 0).toInt(),
+          (data['fat'] ?? 0).toInt(),
+          (data['carb'] ?? 0).toInt(),
+        );
+      } catch (e) {
+        setState(() => _isLoading = false);
+        debugPrint("Scan Error: $e");
+
+        // Beri feedback jika gagal
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("AI gagal mengenali gambar: $e")),
+        );
+      }
     }
   }
 

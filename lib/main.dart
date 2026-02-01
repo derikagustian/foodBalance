@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/diary/daily/daily_screen.dart';
@@ -18,14 +19,24 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 void main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await dotenv.load(fileName: ".env");
+    debugPrint("Environment loaded successfully");
+  } catch (e) {
+    debugPrint("Gagal memuat .env: $e");
+  }
+
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  await initializeDateFormatting('id_ID', null);
+  VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
   Widget initialScreen = FirebaseAuth.instance.currentUser == null
       ? const LoginPage()
       : const MainNavigation();
-  await initializeDateFormatting('id_ID', null);
-  VisibilityDetectorController.instance.updateInterval = Duration.zero;
+
   runApp(
     MultiProvider(
       providers: [ChangeNotifierProvider(create: (_) => UserProvider())],

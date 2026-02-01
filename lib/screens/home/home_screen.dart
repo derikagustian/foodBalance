@@ -49,6 +49,18 @@ class HomePage extends StatelessWidget {
                 ),
               ),
 
+              if (userProv.totalConsumedCalories >
+                      userProv.targetKaloriHarian &&
+                  userProv.targetKaloriHarian > 0)
+                EntranceFaded(
+                  delay: const Duration(milliseconds: 300),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 15),
+                    child:
+                        _OverLimitMessage(), // Kita buat widget terpisah di bawah agar rapi
+                  ),
+                ),
+
               const SizedBox(height: 20),
 
               EntranceFaded(
@@ -131,6 +143,54 @@ class _DiaryHeader extends StatelessWidget {
         ),
         TextButton(onPressed: onViewAll, child: const Text("Lihat semua")),
       ],
+    );
+  }
+}
+
+class _OverLimitMessage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        // Menggunakan warna putih/cream lembut agar kontras dengan BG kuning
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.wb_sunny_rounded, color: Colors.orange, size: 30),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Energi luar biasa!",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "Konsumsi kalorimu sedikit melebihi target hari ini, tapi jangan khawatir. Tubuhmu tetap butuh energi, yuk seimbangkan lagi besok ya! ✨",
+                  style: TextStyle(
+                    color: Colors.grey[700],
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

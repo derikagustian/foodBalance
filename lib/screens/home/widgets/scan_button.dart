@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import 'package:foodbalance/screens/scan/ai_scan_screen.dart';
 import 'package:foodbalance/screens/scan/barcodeScan_screen.dart';

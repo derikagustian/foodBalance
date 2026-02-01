@@ -74,9 +74,30 @@ class MoodCard extends StatelessWidget {
 
                 return Expanded(
                   child: GestureDetector(
-                    onTap: () {
+                    onTap: () async {
                       provider.setHoveredMood("");
                       provider.updateMood(emoji);
+
+                      // Tampilkan loading dialog atau indicator
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) => const Center(
+                          child: CircularProgressIndicator(color: Colors.white),
+                        ),
+                      );
+
+                      // Ambil saran dari AI
+                      String recommendation = await provider
+                          .getAiFoodRecommendation(emoji);
+
+                      // Tutup loading
+                      if (context.mounted) Navigator.pop(context);
+
+                      // Tampilkan hasil AI dalam BottomSheet
+                      if (context.mounted) {
+                        _showAiSheet(context, emoji, recommendation);
+                      }
                     },
                     child: Center(
                       child: AnimatedScale(
@@ -100,6 +121,132 @@ class MoodCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showAiSheet(BuildContext context, String emoji, String text) {
+    // Kita coba pisahkan Nama Makanan dan Alasan jika AI mengikuti format
+    // Jika tidak, kita tampilkan teks utuh dengan desain yang lebih baik.
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle Bar (Indikator geser)
+            Container(
+              width: 50,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(height: 25),
+
+            // Header Mood
+            CircleAvatar(
+              radius: 40,
+              backgroundColor: const Color(0xFFE8F5E9),
+              child: Text(emoji, style: const TextStyle(fontSize: 45)),
+            ),
+            const SizedBox(height: 15),
+
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.auto_awesome, color: Colors.orangeAccent, size: 18),
+                SizedBox(width: 8),
+                Text(
+                  "REKOMENDASI NUTRISI AI",
+                  style: TextStyle(
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                    color: Colors.grey,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Area Teks dengan Scroll
+            Flexible(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F8E9),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFC8E6C9)),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(
+                        Icons.restaurant_menu,
+                        color: Color(0xFF2E7D32),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        text,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          height: 1.6,
+                          color: Color(0xFF1B5E20),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 25),
+
+            // Action Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(
+                  Icons.check_circle_outline,
+                  color: Colors.white,
+                ),
+                label: const Text(
+                  "SAYA MENGERTI",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E7D32),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

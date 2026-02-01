@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:foodbalance/databases/db_helper.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 
 class UserProvider extends ChangeNotifier {
   final DBHelper _dbHelper = DBHelper();
@@ -27,6 +29,8 @@ class UserProvider extends ChangeNotifier {
   String _selectedMood = "";
   String _hoveredMood = "";
 
+  bool _notificationShownToday = false;
+
   // ==========================================
   // 2. CONSTRUCTOR & INITIALIZATION
   // ==========================================
@@ -41,17 +45,44 @@ class UserProvider extends ChangeNotifier {
 
   Future<void> loadData() async {
     final data = await _dbHelper.queryAllFood();
-    _foodDiary = data.map((item) {
-      Map<String, dynamic> mutableItem = Map.from(item);
-      mutableItem['time'] = DateTime.parse(mutableItem['time']);
-      mutableItem['category'] = mutableItem['category'] ?? 'Cemilan';
-      return mutableItem;
-    }).toList();
+    final now = DateTime.now();
+
+    // FILTER: Hanya ambil makanan yang dimakan HARI INI
+    _foodDiary = data
+        .where((item) {
+          DateTime itemDate = DateTime.parse(item['time']);
+          return itemDate.year == now.year &&
+              itemDate.month == now.month &&
+              itemDate.day == now.day;
+        })
+        .map((item) {
+          Map<String, dynamic> mutableItem = Map.from(item);
+          mutableItem['time'] = DateTime.parse(mutableItem['time']);
+          mutableItem['category'] = mutableItem['category'] ?? 'Cemilan';
+          return mutableItem;
+        })
+        .toList();
 
     _foodDiary.sort(
       (a, b) => (a['time'] as DateTime).compareTo(b['time'] as DateTime),
     );
+
+    // Cek apakah target tercapai untuk memicu notifikasi
+    _checkCalorieGoal();
+
     notifyListeners();
+  }
+
+  // Tambahkan Method Logika Notifikasi
+  void _checkCalorieGoal() {
+    if (_caloriesTarget > 0 &&
+        totalConsumedCalories >= _caloriesTarget &&
+        !_notificationShownToday) {
+      // Cetak pesan atau panggil Local Notifications di sini
+      debugPrint("NOTIFIKASI: Target tercapai! Sisa waktu: $_estimasiWaktu");
+
+      _notificationShownToday = true;
+    }
   }
 
   void addFood({
@@ -281,5 +312,61 @@ class UserProvider extends ChangeNotifier {
     await _dbHelper.deleteAllFood();
     resetUser();
     await loadData();
+  }
+
+  // ==========================================
+  // 9. LOGIKA MOOD TRACK
+  // ==========================================
+  bool _isLoadingAi = false;
+  bool get isLoadingAi => _isLoadingAi;
+
+  Future<String> getAiFoodRecommendation(String mood) async {
+    final apiKey = dotenv.env['GEMINI_API_KEY'] ?? "";
+
+    if (apiKey.isEmpty) {
+      debugPrint("Error: API Key tidak ditemukan di .env");
+      return "Konfigurasi AI belum siap. Coba cek file .env kamu!";
+    }
+
+    _isLoadingAi = true;
+    notifyListeners();
+
+    try {
+      final model = GenerativeModel(
+        model: 'gemini-2.5-flash-lite',
+        apiKey: apiKey,
+        safetySettings: [
+          SafetySetting(HarmCategory.harassment, HarmBlockThreshold.none),
+          SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.none),
+        ],
+      );
+
+      // Prompt yang sudah kamu buat sudah bagus, santai namun informatif
+      final prompt =
+          """
+  Role: Ahli Gizi Profesional.
+  Konteks: Pengguna sedang merasa $mood dan memiliki tujuan kesehatan: $tujuan.
+  Tugas: Rekomendasikan 1 menu makanan sehat yang spesifik.
+  Format Jawaban: 
+  - Nama Makanan: (Sebutkan namanya)
+  - Alasan: (Berikan alasan medis/kesehatan singkat kenapa cocok dengan mood $mood dalam 2 kalimat).
+  Catatan: Jangan memberikan jawaban satu kata atau reaksi singkat. Gunakan Bahasa Indonesia.
+""";
+
+      final content = [Content.text(prompt)];
+      final response = await model.generateContent(content);
+
+      _isLoadingAi = false;
+      notifyListeners();
+
+      // Membersihkan teks dari spasi berlebih atau karakter aneh jika ada
+      return response.text?.trim() ??
+          "Coba makan buah segar ya agar tetap sehat!";
+    } catch (e) {
+      debugPrint("Gemini Error: $e"); // Membantu saat debugging
+      _isLoadingAi = false;
+      notifyListeners();
+      return "Duh, AI sedang istirahat. Coba lagi nanti ya!";
+    }
   }
 }

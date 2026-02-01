@@ -72,7 +72,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       child: CircleAvatar(
                         radius: 25,
                         backgroundImage: photoUrl != null
-                            ? NetworkImage(photoUrl!)
+                            ? NetworkImage(photoUrl)
                             : const AssetImage("assets/images/profile.png")
                                   as ImageProvider,
                       ),
