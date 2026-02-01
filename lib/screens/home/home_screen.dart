@@ -11,6 +11,8 @@ import 'widgets/food_diary_section.dart';
 import '../../providers/user_provider.dart';
 import '../diary/daily/daily_screen.dart';
 
+import 'package:foodbalance/screens/scan/ai_scan_screen.dart';
+
 import 'package:foodbalance/widgets/slideUp_animation.dart';
 
 class HomePage extends StatelessWidget {
@@ -38,6 +40,66 @@ class HomePage extends StatelessWidget {
 
               const SizedBox(height: 20),
 
+              if (userProv.pendingFood != null) ...[
+                EntranceFaded(
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 15),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, color: Colors.orange),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Ada hasil scan yang belum disimpan",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              Text(
+                                "Scan: ${userProv.pendingFood!['name']} (${DateFormat('HH:mm').format(userProv.pendingFood!['scanTime'])})",
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            final draft = context
+                                .read<UserProvider>()
+                                .pendingFood!;
+                            // Sekarang ini pasti berfungsi
+                            AiScanPage.showResultSheet(
+                              context: context,
+                              name: draft['name'],
+                              cal: draft['calories'],
+                              prot: draft['protein'],
+                              fat: draft['fat'],
+                              carb: draft['carb'],
+                              scanTime: draft['scanTime'],
+                            );
+                          },
+                          child: const Text("Lihat"),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () => userProv.clearPendingFood(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+
               EntranceFaded(
                 delay: const Duration(milliseconds: 200),
                 child: CalorieSummaryCard(
@@ -49,15 +111,14 @@ class HomePage extends StatelessWidget {
                 ),
               ),
 
-              if (userProv.totalConsumedCalories >
+              if (userProv.totalConsumedCalories >=
                       userProv.targetKaloriHarian &&
                   userProv.targetKaloriHarian > 0)
                 EntranceFaded(
                   delay: const Duration(milliseconds: 300),
                   child: Padding(
                     padding: const EdgeInsets.only(top: 15),
-                    child:
-                        _OverLimitMessage(), // Kita buat widget terpisah di bawah agar rapi
+                    child: _OverLimitMessage(),
                   ),
                 ),
 

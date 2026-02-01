@@ -85,15 +85,18 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
+  // GANTI METHOD addFood LAMA DENGAN INI:
   void addFood({
     required String name,
     required int calories,
     required int protein,
     required int fat,
     required int carb,
+    DateTime? manualTime,
   }) async {
-    final now = DateTime.now();
-    String kategori = tentukanKategori(now);
+    final waktuSimpan = manualTime ?? DateTime.now();
+
+    String kategori = tentukanKategori(waktuSimpan);
 
     await _dbHelper.insertFood({
       'name': name,
@@ -102,7 +105,7 @@ class UserProvider extends ChangeNotifier {
       'fat': fat,
       'carb': carb,
       'category': kategori,
-      'time': now.toIso8601String(),
+      'time': waktuSimpan.toIso8601String(),
     });
 
     await loadData();
@@ -167,14 +170,20 @@ class UserProvider extends ChangeNotifier {
   double get totalConsumedCalories =>
       _foodDiary.fold(0, (sum, item) => sum + item['calories']);
 
-  int get totalConsumedCarbs =>
-      _foodDiary.fold(0, (sum, item) => sum + (item['carb'] as int));
+  int get totalConsumedCarbs => _foodDiary.fold(
+    0,
+    (sum, item) => sum + (item['carb'] as num? ?? 0).toInt(),
+  );
 
-  int get totalConsumedProtein =>
-      _foodDiary.fold(0, (sum, item) => sum + (item['protein'] as int));
+  int get totalConsumedProtein => _foodDiary.fold(
+    0,
+    (sum, item) => sum + (item['protein'] as num? ?? 0).toInt(),
+  );
 
-  int get totalConsumedFat =>
-      _foodDiary.fold(0, (sum, item) => sum + (item['fat'] as int));
+  int get totalConsumedFat => _foodDiary.fold(
+    0,
+    (sum, item) => sum + (item['fat'] as num? ?? 0).toInt(),
+  );
 
   // ==========================================
   // 6. LOGIKA STATISTIK & STREAK
@@ -368,5 +377,24 @@ class UserProvider extends ChangeNotifier {
       notifyListeners();
       return "Duh, AI sedang istirahat. Coba lagi nanti ya!";
     }
+  }
+
+  // ==========================================
+  // 10. LOGIKA pending food
+  // ==========================================
+  // Di dalam UserProvider
+  Map<String, dynamic>? _pendingFood;
+  Map<String, dynamic>? get pendingFood => _pendingFood;
+
+  // Fungsi untuk menyimpan draft scan
+  void setPendingFood(Map<String, dynamic>? foodData) {
+    _pendingFood = foodData;
+    notifyListeners();
+  }
+
+  // Fungsi untuk menghapus draft setelah disimpan atau dibatalkan
+  void clearPendingFood() {
+    _pendingFood = null;
+    notifyListeners();
   }
 }
