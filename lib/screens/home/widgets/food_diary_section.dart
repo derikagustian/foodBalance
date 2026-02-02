@@ -8,19 +8,20 @@ import 'package:visibility_detector/visibility_detector.dart';
 
 class FoodDiarySection extends StatelessWidget {
   final UserProvider provider;
-
   const FoodDiarySection({super.key, required this.provider});
 
   @override
   Widget build(BuildContext context) {
-    if (provider.foodDiary.isEmpty) {
+    // GANTI baris ini:
+    final items = provider.todayFoodDiary; // Menggunakan getter hari ini
+
+    if (items.isEmpty) {
       return const _EmptyFoodCard();
     }
 
     return Column(
-      children: List.generate(provider.foodDiary.length, (index) {
-        final item = provider.foodDiary[index];
-
+      children: List.generate(items.length, (index) {
+        final item = items[index];
         return AnimatedFoodCard(
           key: ValueKey('food_${item['id']}'),
           item: item,

@@ -43,33 +43,28 @@ class UserProvider extends ChangeNotifier {
   // 3. LOGIKA DATABASE (CRUD)
   // ==========================================
 
+  // ==========================================
+  // 3. LOGIKA DATABASE (CRUD)
+  // ==========================================
   Future<void> loadData() async {
     final data = await _dbHelper.queryAllFood();
-    final now = DateTime.now();
 
-    // FILTER: Hanya ambil makanan yang dimakan HARI INI
-    _foodDiary = data
-        .where((item) {
-          DateTime itemDate = DateTime.parse(item['time']);
-          return itemDate.year == now.year &&
-              itemDate.month == now.month &&
-              itemDate.day == now.day;
-        })
-        .map((item) {
-          Map<String, dynamic> mutableItem = Map.from(item);
-          mutableItem['time'] = DateTime.parse(mutableItem['time']);
-          mutableItem['category'] = mutableItem['category'] ?? 'Cemilan';
-          return mutableItem;
-        })
-        .toList();
+    // Ambil semua data dan ubah format string time ke DateTime
+    _foodDiary = data.map((item) {
+      Map<String, dynamic> mutableItem = Map.from(item);
+      if (mutableItem['time'] is String) {
+        mutableItem['time'] = DateTime.parse(mutableItem['time']);
+      }
+      mutableItem['category'] = mutableItem['category'] ?? 'Cemilan';
+      return mutableItem;
+    }).toList();
 
     _foodDiary.sort(
-      (a, b) => (a['time'] as DateTime).compareTo(b['time'] as DateTime),
+      (a, b) => (b['time'] as DateTime).compareTo(a['time'] as DateTime),
     );
 
-    // Cek apakah target tercapai untuk memicu notifikasi
+    _notificationShownToday = false;
     _checkCalorieGoal();
-
     notifyListeners();
   }
 
@@ -168,19 +163,19 @@ class UserProvider extends ChangeNotifier {
   // ==========================================
 
   double get totalConsumedCalories =>
-      _foodDiary.fold(0, (sum, item) => sum + item['calories']);
+      todayFoodDiary.fold(0, (sum, item) => sum + item['calories']);
 
-  int get totalConsumedCarbs => _foodDiary.fold(
+  int get totalConsumedCarbs => todayFoodDiary.fold(
     0,
     (sum, item) => sum + (item['carb'] as num? ?? 0).toInt(),
   );
 
-  int get totalConsumedProtein => _foodDiary.fold(
+  int get totalConsumedProtein => todayFoodDiary.fold(
     0,
     (sum, item) => sum + (item['protein'] as num? ?? 0).toInt(),
   );
 
-  int get totalConsumedFat => _foodDiary.fold(
+  int get totalConsumedFat => todayFoodDiary.fold(
     0,
     (sum, item) => sum + (item['fat'] as num? ?? 0).toInt(),
   );
@@ -380,7 +375,7 @@ class UserProvider extends ChangeNotifier {
   }
 
   // ==========================================
-  // 10. LOGIKA pending food
+  // 10. LOGIKA PENDING FOOD
   // ==========================================
   // Di dalam UserProvider
   Map<String, dynamic>? _pendingFood;
@@ -396,5 +391,20 @@ class UserProvider extends ChangeNotifier {
   void clearPendingFood() {
     _pendingFood = null;
     notifyListeners();
+  }
+
+  // ==========================================
+  // 11. LOGIKA DATa HARI INI
+  // ==========================================
+  List<Map<String, dynamic>> get todayFoodDiary {
+    final now = DateTime.now();
+    return _foodDiary.where((item) {
+      final DateTime itemDate = item['time'] is DateTime
+          ? item['time']
+          : DateTime.parse(item['time'].toString());
+      return itemDate.year == now.year &&
+          itemDate.month == now.month &&
+          itemDate.day == now.day;
+    }).toList();
   }
 }

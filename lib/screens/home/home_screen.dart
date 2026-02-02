@@ -15,14 +15,28 @@ import 'package:foodbalance/screens/scan/ai_scan_screen.dart';
 
 import 'package:foodbalance/widgets/slideUp_animation.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
+  // UBAH KE STATEFUL
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  @override
+  void initState() {
+    super.initState();
+    // Pemicu reset data: memuat ulang data dengan filter tanggal 'now' terbaru
+    Future.microtask(() => context.read<UserProvider>().loadData());
+  }
 
   @override
   Widget build(BuildContext context) {
     final userProv = context.watch<UserProvider>();
     final user = FirebaseAuth.instance.currentUser;
 
+    // Tanggal akan otomatis update ke hari ini setiap build dijalankan
     final tanggalFormatted = DateFormat(
       'EEEE, d MMMM',
       'id_ID',
@@ -74,10 +88,7 @@ class HomePage extends StatelessWidget {
                         ),
                         TextButton(
                           onPressed: () {
-                            final draft = context
-                                .read<UserProvider>()
-                                .pendingFood!;
-                            // Sekarang ini pasti berfungsi
+                            final draft = userProv.pendingFood!;
                             AiScanPage.showResultSheet(
                               context: context,
                               name: draft['name'],
