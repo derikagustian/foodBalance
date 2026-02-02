@@ -13,6 +13,45 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fillControllerData();
+    });
+  }
+
+  void _fillControllerData() {
+    final userProv = Provider.of<UserProvider>(context, listen: false);
+    setState(() {
+      _usiaController.text = userProv.usia > 0 ? userProv.usia.toString() : "";
+      _tinggiController.text = userProv.tinggi > 0
+          ? userProv.tinggi.toString()
+          : "";
+      _beratController.text = userProv.berat > 0
+          ? userProv.berat.toString()
+          : "";
+      _jenisKelamin = userProv.jenisKelamin.isNotEmpty
+          ? userProv.jenisKelamin
+          : null;
+
+      if (userProv.tujuan == "Turun BB")
+        _selectedGoalIndex = 0;
+      else if (userProv.tujuan == "Jaga BB")
+        _selectedGoalIndex = 1;
+      else if (userProv.tujuan == "Naik BB")
+        _selectedGoalIndex = 2;
+    });
+  }
+
+  @override
+  void dispose() {
+    _usiaController.dispose();
+    _tinggiController.dispose();
+    _beratController.dispose();
+    super.dispose();
+  }
+
   final TextEditingController _usiaController = TextEditingController(text: "");
   final TextEditingController _tinggiController = TextEditingController(
     text: "",
@@ -507,41 +546,64 @@ class _ProfilePageState extends State<ProfilePage> {
     // Mengambil data estimasi dari Provider
     final estimasi = context.watch<UserProvider>().estimasiWaktu;
 
+    // Logic sederhana: jika ada kata "Tercapai" atau "Pertahankan", anggap sukses
+    bool isSuccess =
+        estimasi.contains("Tercapai") || estimasi.contains("Pertahankan");
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: primaryGreen.withOpacity(0.3)),
+        // Border berubah warna kalau sukses
+        border: Border.all(
+          color: isSuccess
+              ? Colors.green.withOpacity(0.5)
+              : primaryGreen.withOpacity(0.3),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          const Text(
+          Text(
             "Target Capaian",
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: primaryGreen,
+              color: isSuccess ? Colors.green : primaryGreen,
             ),
           ),
           const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.timer_outlined, color: Colors.orange, size: 24),
+              // Ikon berubah kalau sukses
+              Icon(
+                isSuccess ? Icons.check_circle_outline : Icons.timer_outlined,
+                color: isSuccess ? Colors.green : Colors.orange,
+                size: 24,
+              ),
               const SizedBox(width: 8),
               Text(
                 estimasi,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+                  // Teks berubah warna kalau sukses
+                  color: isSuccess ? Colors.green : Colors.black87,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 8),
           const Text(
             "*Estimasi berdasarkan progres sehat 0.5kg/minggu",
             style: TextStyle(

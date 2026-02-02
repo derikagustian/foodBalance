@@ -55,4 +55,18 @@ class DBHelper {
     final db = await database;
     return await db.delete('food_diary');
   }
+
+  // FUNGSI DELETE DATA LAMA
+  Future<int> deleteOldData(int days) async {
+    final db = await database;
+    // Menghitung tanggal batas (misal: hari ini - 30 hari)
+    DateTime limitDate = DateTime.now().subtract(Duration(days: days));
+
+    return await db.delete(
+      'food_diary',
+      // Gunakan parameter bernama 'where' dan 'whereArgs'
+      where: 'time < ?',
+      whereArgs: [limitDate.toIso8601String()],
+    );
+  }
 }

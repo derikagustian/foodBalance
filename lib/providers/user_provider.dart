@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:foodbalance/databases/db_helper.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class UserProvider extends ChangeNotifier {
   final DBHelper _dbHelper = DBHelper();
@@ -37,16 +38,18 @@ class UserProvider extends ChangeNotifier {
 
   UserProvider() {
     loadData();
+    loadProfile();
   }
 
   // ==========================================
   // 3. LOGIKA DATABASE (CRUD)
   // ==========================================
-
-  // ==========================================
-  // 3. LOGIKA DATABASE (CRUD)
-  // ==========================================
   Future<void> loadData() async {
+    try {
+      await _dbHelper.deleteOldData(30);
+    } catch (e) {
+      debugPrint("Gagal cleanup: $e");
+    }
     final data = await _dbHelper.queryAllFood();
 
     // Ambil semua data dan ubah format string time ke DateTime
@@ -123,38 +126,53 @@ class UserProvider extends ChangeNotifier {
   double get targetProtein => (_caloriesTarget * 0.2) / 4;
   double get targetLemak => (_caloriesTarget * 0.3) / 9;
 
+  // Di dalam UserProvider.dart (Update fungsi kalkulasiDanSimpan)
+
   void kalkulasiDanSimpan({
     required double bb,
     required double tb,
     required int age,
     required String jk,
     required String goal,
-  }) {
+  }) async {
+    // Simpan state input ke variabel class agar sinkron
+    this.berat = bb;
+    this.tinggi = tb;
+    this.usia = age;
+    this.jenisKelamin = jk;
+    this.tujuan = goal;
+
     // Rumus Mifflin-St Jeor
     double bmr = (jk == 'Laki - laki')
         ? (10 * bb) + (6.25 * tb) - (5 * age) + 5
         : (10 * bb) + (6.25 * tb) - (5 * age) - 161;
 
     double tdee = bmr * 1.2;
-    double targetBB = tb - 100;
+
+    // Rumus Broca: Berat Ideal = (Tinggi - 100) - 10% (untuk pria) atau 15% (untuk wanita)
+    double faktorPenyusut = (jk == 'Laki - laki') ? 0.10 : 0.15;
+    double targetBB = (tb - 100) - ((tb - 100) * faktorPenyusut);
 
     if (goal == "Turun BB") {
       _caloriesTarget = tdee - 500;
       double selisihBB = bb - targetBB;
-      _estimasiWaktu = selisihBB > 0
-          ? "${(selisihBB / 0.5).ceil()} Minggu menuju ideal"
-          : "Sudah mencapai target";
+      _estimasiWaktu =
+          selisihBB <=
+              0.2 // Toleransi 200 gram
+          ? "Target Tercapai! 🎉"
+          : "${(selisihBB / 0.5).ceil()} Minggu menuju ideal";
     } else if (goal == "Naik BB") {
       _caloriesTarget = tdee + 500;
       double selisihBB = targetBB - bb;
-      _estimasiWaktu = selisihBB > 0
-          ? "${(selisihBB / 0.5).ceil()} Minggu menuju ideal"
-          : "Sudah mencapai target";
+      _estimasiWaktu = selisihBB <= 0.2
+          ? "Target Tercapai! 🎉"
+          : "${(selisihBB / 0.5).ceil()} Minggu menuju ideal";
     } else {
       _caloriesTarget = tdee;
       _estimasiWaktu = "Pertahankan kondisi saat ini";
     }
 
+    await _saveProfileToPrefs(); // SIMPAN PERMANEN
     notifyListeners();
   }
 
@@ -394,7 +412,7 @@ class UserProvider extends ChangeNotifier {
   }
 
   // ==========================================
-  // 11. LOGIKA DATa HARI INI
+  // 11. LOGIKA DATA HARI INI
   // ==========================================
   List<Map<String, dynamic>> get todayFoodDiary {
     final now = DateTime.now();
@@ -406,5 +424,33 @@ class UserProvider extends ChangeNotifier {
           itemDate.month == now.month &&
           itemDate.day == now.day;
     }).toList();
+  }
+
+  // ==========================================
+  // 11. SHARED PREFERENCES
+  // ==========================================
+  Future<void> _saveProfileToPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('berat', berat);
+    await prefs.setDouble('tinggi', tinggi);
+    await prefs.setInt('usia', usia);
+    await prefs.setString('jk', jenisKelamin);
+    await prefs.setString('tujuan', tujuan);
+    await prefs.setDouble('caloriesTarget', _caloriesTarget);
+    await prefs.setString('estimasiWaktu', _estimasiWaktu);
+  }
+
+  // Muat data profil dari SharedPreferences
+  Future<void> loadProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    berat = prefs.getDouble('berat') ?? 0;
+    tinggi = prefs.getDouble('tinggi') ?? 0;
+    usia = prefs.getInt('usia') ?? 0;
+    jenisKelamin = prefs.getString('jk') ?? "";
+    tujuan = prefs.getString('tujuan') ?? "";
+    _caloriesTarget = prefs.getDouble('caloriesTarget') ?? 0;
+    _estimasiWaktu = prefs.getString('estimasiWaktu') ?? "-";
+
+    notifyListeners();
   }
 }
