@@ -30,6 +30,8 @@ class UserProvider extends ChangeNotifier {
 
   bool _notificationShownToday = false;
 
+  DateTime? _targetDate;
+
   // ==========================================
   // 2. CONSTRUCTOR & INITIALIZATION
   // ==========================================
@@ -59,6 +61,7 @@ class UserProvider extends ChangeNotifier {
 
     _notificationShownToday = false;
     _checkCalorieGoal();
+    _updateEstimasiWaktu();
     notifyListeners();
   }
 
@@ -145,21 +148,20 @@ class UserProvider extends ChangeNotifier {
     double faktorPenyusut = (jk == 'Laki - laki') ? 0.10 : 0.15;
     double targetBB = (tb - 100) - ((tb - 100) * faktorPenyusut);
 
-    if (goal == "Turun BB") {
-      _caloriesTarget = tdee - 500;
-      double selisihBB = bb - targetBB;
-      _estimasiWaktu = selisihBB <= 0.2
-          ? "Target Tercapai! 🎉"
-          : "${(selisihBB / 0.5).ceil()} Minggu menuju ideal";
-    } else if (goal == "Naik BB") {
-      _caloriesTarget = tdee + 500;
-      double selisihBB = targetBB - bb;
-      _estimasiWaktu = selisihBB <= 0.2
-          ? "Target Tercapai! 🎉"
-          : "${(selisihBB / 0.5).ceil()} Minggu menuju ideal";
-    } else {
-      _caloriesTarget = tdee;
-      _estimasiWaktu = "Pertahankan kondisi saat ini";
+    if (goal == "Turun BB" || goal == "Naik BB") {
+      double selisihBB = (goal == "Turun BB")
+          ? (bb - targetBB)
+          : (targetBB - bb);
+
+      if (selisihBB <= 0.2) {
+        _estimasiWaktu = "Target Tercapai! 🎉";
+        _targetDate = null;
+      } else {
+        int totalMinggu = (selisihBB / 0.5).ceil();
+        // Simpan tanggal target (Hari ini + jumlah minggu)
+        _targetDate = DateTime.now().add(Duration(days: totalMinggu * 7));
+        _updateEstimasiWaktu(); // Panggil fungsi helper
+      }
     }
 
     await _saveProfileToPrefs();
@@ -357,6 +359,10 @@ class UserProvider extends ChangeNotifier {
     tujuan = data['tujuan'];
     _caloriesTarget = data['caloriesTarget'];
     _estimasiWaktu = data['estimasiWaktu'];
+    if (data['targetDate'] != null) {
+      _targetDate = DateTime.parse(data['targetDate']);
+    }
+    _updateEstimasiWaktu();
     notifyListeners();
   }
 
@@ -369,6 +375,7 @@ class UserProvider extends ChangeNotifier {
       'tujuan': tujuan,
       'caloriesTarget': _caloriesTarget,
       'estimasiWaktu': _estimasiWaktu,
+      'targetDate': _targetDate?.toIso8601String(),
     };
 
     await _storageService.saveProfileToPrefs(profileMap);
@@ -471,5 +478,26 @@ class UserProvider extends ChangeNotifier {
     await cleanupData(days);
 
     notifyListeners();
+  }
+
+  // ==========================================
+  // 16. LOGIKA UPDATE WAKTU TARGET CAPAIAN
+  // ==========================================
+  void _updateEstimasiWaktu() {
+    if (_targetDate == null) return;
+
+    final now = DateTime.now();
+    final difference = _targetDate!.difference(now);
+
+    // Menggunakan total jam dibagi 24 agar sisa 12 jam tetap dihitung 1 hari
+    final sisaHari = (difference.inHours / 24).ceil();
+
+    if (sisaHari <= 0) {
+      _estimasiWaktu = "Target Tercapai! 🎉";
+    } else if (sisaHari < 7) {
+      _estimasiWaktu = "$sisaHari Hari lagi menuju ideal";
+    } else {
+      _estimasiWaktu = "${(sisaHari / 7).ceil()} Minggu lagi menuju ideal";
+    }
   }
 }

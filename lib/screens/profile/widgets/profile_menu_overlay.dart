@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:foodbalance/services/firebase_service.dart';
 import 'package:provider/provider.dart';
 import 'package:google_sign_in/google_sign_in.dart' as google_auth;
 import 'package:foodbalance/providers/user_provider.dart';
@@ -172,18 +173,17 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
                   child: Column(
                     children: [
                       _buildSubMenuItem(
+                        Icons.delete_sweep_outlined,
+                        "Auto Cleanup Data",
+                        isDanger: true,
+                        onTap: () => _showCleanupOptions(),
+                      ),
+                      _buildSubMenuItem(
                         _isBackingUp
                             ? Icons.hourglass_empty
                             : Icons.cloud_upload_outlined,
                         _isBackingUp ? "Memproses..." : "Backup Data",
                         onTap: _isBackingUp ? null : _runBackupTask,
-                      ),
-                      _buildSubMenuItem(
-                        Icons.delete_sweep_outlined,
-                        "Auto Cleanup Data",
-                        isDanger: true,
-                        onTap: () =>
-                            _showCleanupOptions(), // Panggil fungsi baru ini
                       ),
                     ],
                   ),
@@ -334,15 +334,77 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
 
   Future<void> _performLogout() async {
     final provider = context.read<UserProvider>();
-    await provider.clearAllData();
-    await FirebaseAuth.instance.signOut();
-    await google_auth.GoogleSignIn().signOut();
-    if (mounted)
-      Navigator.pushNamedAndRemoveUntil(context, '/login', (r) => false);
+    final user = FirebaseAuth.instance.currentUser;
+    final firebaseService = FirebaseService();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      if (user != null && user.isAnonymous) {
+        await firebaseService.deleteUserEntirely();
+      } else {
+        await FirebaseAuth.instance.signOut();
+        await google_auth.GoogleSignIn().signOut();
+      }
+
+      await provider.clearAllData();
+
+      if (mounted) {
+        Navigator.pop(context);
+
+        Navigator.pushNamedAndRemoveUntil(context, '/login', (r) => false);
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        _showSnackBar("Gagal memproses permintaan: $e");
+      }
+    }
   }
 
   Future<void> _linkWithGoogle() async {
-    _showSnackBar("Memulai proses penautan akun...");
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final googleUser = await google_auth.GoogleSignIn().signIn();
+      if (googleUser == null) return;
+
+      final googleAuth = await googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      await user.linkWithCredential(credential);
+
+      final provider = context.read<UserProvider>();
+
+      await provider.kalkulasiDanSimpan(
+        bb: provider.berat,
+        tb: provider.tinggi,
+        age: provider.usia,
+        jk: provider.jenisKelamin,
+        goal: provider.tujuan,
+      );
+
+      if (mounted) {
+        _showSnackBar("Akun berhasil ditautkan ke Google! 🎉");
+        setState(() {});
+      }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'credential-already-in-use') {
+        _showSnackBar("Email ini sudah terhubung dengan akun lain.");
+      } else {
+        _showSnackBar("Gagal menautkan: ${e.message}");
+      }
+    } catch (e) {
+      _showSnackBar("Terjadi kesalahan: $e");
+    }
   }
 
   void _showSnackBar(String message) {
