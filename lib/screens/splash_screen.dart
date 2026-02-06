@@ -2,8 +2,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:foodbalance/screens/auth/login_screen.dart';
-import 'package:foodbalance/main.dart'; // Memastikan MainNavigation dikenali
 import 'package:firebase_auth/firebase_auth.dart';
 
 class SplashScreen extends StatefulWidget {

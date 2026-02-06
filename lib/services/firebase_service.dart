@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 class FirebaseService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -8,7 +8,6 @@ class FirebaseService {
 
   String? get userId => _auth.currentUser?.uid;
 
-  // Mendukung Sinkronisasi Profil (Berat, Tinggi, Tujuan, dll)
   Future<void> syncProfile(Map<String, dynamic> profileData) async {
     if (userId == null) return;
     try {
@@ -17,22 +16,25 @@ class FirebaseService {
         'last_sync': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
-      print("Error Sync Profile: $e");
+      debugPrint("Error Sync Profile: $e");
     }
   }
 
-  // Mendukung Backup Data Makanan
   Future<String?> backupFoodItem(Map<String, dynamic> foodMap) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return null;
+    if (userId == null) return null;
 
     try {
-      DocumentReference docRef = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('food_diary')
-          .add(foodMap);
+      final dataToUpload = Map<String, dynamic>.from(foodMap);
+      dataToUpload.remove('id');
+      dataToUpload['updated_at'] = FieldValue.serverTimestamp();
 
+      DocumentReference docRef = _db
+          .collection('users')
+          .doc(userId)
+          .collection('food_diary')
+          .doc();
+
+      await docRef.set(dataToUpload);
       return docRef.id;
     } catch (e) {
       debugPrint("Error backup ke Firebase: $e");
@@ -41,45 +43,59 @@ class FirebaseService {
   }
 
   Future<void> deleteFoodItem(String docId) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('food_diary')
-        .doc(docId)
-        .delete();
-  }
-
-  // Reset Data di Cloud saat User Logout/Reset
-  Future<void> deleteUserEntirely() async {
-    User? user = _auth.currentUser;
-    if (user == null) return;
-
-    await deleteUserCloudData();
-
-    await user.delete();
+    if (userId == null) return;
+    try {
+      await _db
+          .collection('users')
+          .doc(userId)
+          .collection('food_diary')
+          .doc(docId)
+          .delete();
+    } catch (e) {
+      debugPrint("Error hapus cloud item: $e");
+    }
   }
 
   Future<void> deleteUserCloudData() async {
     if (userId == null) return;
     try {
-      final foodDiaryRef = _db
+      final snapshots = await _db
           .collection('users')
           .doc(userId)
-          .collection('food_diary');
-      final snapshots = await foodDiaryRef.get();
+          .collection('food_diary')
+          .get();
+
+      WriteBatch batch = _db.batch();
 
       for (var doc in snapshots.docs) {
-        await doc.reference.delete();
+        batch.delete(doc.reference);
       }
 
-      await _db.collection('users').doc(userId).delete();
+      batch.delete(_db.collection('users').doc(userId));
 
-      debugPrint("Semua data cloud untuk user $userId telah dihapus.");
+      await batch.commit();
+      debugPrint("Semua data cloud berhasil dihapus.");
     } catch (e) {
-      debugPrint("Gagal menghapus data cloud: $e");
+      throw Exception("Gagal menghapus data: $e");
+    }
+  }
+
+  Future<void> reauthenticateAndDelete(String password) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    AuthCredential credential = EmailAuthProvider.credential(
+      email: user.email!,
+      password: password,
+    );
+
+    try {
+      await user.reauthenticateWithCredential(credential);
+      await deleteUserCloudData();
+      await user.delete();
+    } catch (e) {
+      debugPrint("Re-autentikasi gagal: $e");
+      rethrow;
     }
   }
 }

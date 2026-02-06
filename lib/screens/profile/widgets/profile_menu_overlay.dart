@@ -1,9 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:foodbalance/screens/diary/daily/daily_screen.dart';
 import 'package:foodbalance/services/firebase_service.dart';
 import 'package:provider/provider.dart';
 import 'package:google_sign_in/google_sign_in.dart' as google_auth;
 import 'package:foodbalance/providers/user_provider.dart';
+import 'package:foodbalance/services/notification_service.dart';
 
 class ProfileMenuOverlay extends StatefulWidget {
   final String? photoUrl;
@@ -24,6 +26,7 @@ class ProfileMenuOverlay extends StatefulWidget {
 class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
   bool _isSettingsExpanded = false;
   bool _isBackingUp = false;
+  bool _isReminderActive = false; // Status awal pengingat
 
   @override
   Widget build(BuildContext context) {
@@ -60,8 +63,33 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
                           "Tautkan Akun",
                           onTap: () => _handleAccountLinking(user),
                         ),
-                        _buildMenuItem(Icons.history, "Riwayat Makan"),
-                        _buildMenuItem(Icons.notifications_none, "Notifikasi"),
+                        _buildMenuItem(
+                          Icons.history,
+                          "Riwayat Makan",
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const DailyLogPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        _buildMenuItem(
+                          Icons.notifications_active_outlined,
+                          "Pengingat Makan",
+                          trailing: Switch(
+                            value: _isReminderActive,
+                            activeColor: const Color(0xFF2E7D32),
+                            onChanged: (bool value) {
+                              _toggleReminders(value);
+                            },
+                          ),
+                          onTap: () {
+                            _toggleReminders(!_isReminderActive);
+                          },
+                        ),
                         _buildExpandableSettings(),
                         const Divider(height: 30, indent: 20, endIndent: 20),
                         _buildMenuItem(
@@ -179,11 +207,23 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
                         onTap: () => _showCleanupOptions(),
                       ),
                       _buildSubMenuItem(
-                        _isBackingUp
-                            ? Icons.hourglass_empty
-                            : Icons.cloud_upload_outlined,
-                        _isBackingUp ? "Memproses..." : "Backup Data",
-                        onTap: _isBackingUp ? null : _runBackupTask,
+                        Icons.cloud_sync_outlined,
+                        "Cadangkan & Sinkronisasi",
+                        onTap: () =>
+                            _showBackupOptions(), // Panggil dialog baru
+                      ),
+                      _buildSubMenuItem(
+                        Icons.person_remove_outlined,
+                        "Hapus Akun Selamanya",
+                        isDanger: true,
+                        onTap: () {
+                          final user = FirebaseAuth.instance.currentUser;
+                          if (user?.isAnonymous ?? true) {
+                            _performLogout();
+                          } else {
+                            _showDeleteAccountDialog(context);
+                          }
+                        },
                       ),
                     ],
                   ),
@@ -249,11 +289,22 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
   // --- LOGIC & ACTIONS ---
 
   void _runBackupTask() async {
+    if (_isBackingUp) return;
+
     setState(() => _isBackingUp = true);
-    await Future.delayed(const Duration(seconds: 2));
-    if (mounted) {
-      setState(() => _isBackingUp = false);
-      _showSnackBar("Data berhasil dicadangkan ke Cloud!");
+
+    try {
+      final provider = context.read<UserProvider>();
+
+      await provider.runFullBackup();
+
+      if (mounted) {
+        _showSnackBar("Data berhasil dicadangkan ke Cloud! 🚀");
+      }
+    } catch (e) {
+      if (mounted) _showSnackBar("Gagal mencadangkan: $e");
+    } finally {
+      if (mounted) setState(() => _isBackingUp = false);
     }
   }
 
@@ -332,6 +383,121 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
     );
   }
 
+  void _showDeleteAccountDialog(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final bool isAnonymous = user?.isAnonymous ?? true;
+    final TextEditingController passwordController = TextEditingController();
+    final firebaseService = FirebaseService();
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Text(
+                isAnonymous ? "Hapus Sesi Tamu?" : "Hapus Akun Permanen",
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isAnonymous
+                        ? "Semua data yang Anda catat sebagai tamu akan dihapus permanen dari cloud."
+                        : "Tindakan ini tidak dapat dibatalkan. Masukkan kata sandi Anda untuk menghapus akun dan seluruh data Cloud.",
+                    style: const TextStyle(fontSize: 14, color: Colors.black87),
+                  ),
+                  if (!isAnonymous) ...[
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: passwordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: "Kata Sandi",
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.lock_outline),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isLoading ? null : () => Navigator.pop(context),
+                  child: const Text(
+                    "Batal",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          setState(() => isLoading = true);
+                          try {
+                            if (!isAnonymous) {
+                              await firebaseService.reauthenticateAndDelete(
+                                passwordController.text,
+                              );
+                            } else {
+                              await firebaseService.deleteUserCloudData();
+                              await user?.delete();
+                            }
+
+                            await userProvider.clearAllData();
+
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              Navigator.pushNamedAndRemoveUntil(
+                                context,
+                                '/login',
+                                (r) => false,
+                              );
+                              _showSnackBar("Akun berhasil dihapus.");
+                            }
+                          } catch (e) {
+                            setState(() => isLoading = false);
+                            if (context.mounted) {
+                              _showSnackBar(
+                                "Gagal: Pastikan kata sandi benar.",
+                              );
+                            }
+                          }
+                        },
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text("Hapus Selamanya"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _performLogout() async {
     final provider = context.read<UserProvider>();
     final user = FirebaseAuth.instance.currentUser;
@@ -344,8 +510,9 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
     );
 
     try {
+      await NotificationService().cancelAllNotifications();
       if (user != null && user.isAnonymous) {
-        await firebaseService.deleteUserEntirely();
+        await firebaseService.deleteUserCloudData();
         await provider.clearAllData();
       } else {
         await FirebaseAuth.instance.signOut();
@@ -353,7 +520,7 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
       }
 
       if (mounted) {
-        Navigator.pop(context); // Tutup loading
+        Navigator.pop(context);
         Navigator.pushNamedAndRemoveUntil(context, '/login', (r) => false);
       }
     } catch (e) {
@@ -406,6 +573,7 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
   }
 
   void _showSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
@@ -477,7 +645,7 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
           try {
             await userProvider.setAutoCleanupDays(days);
 
-            if (context.mounted) {
+            if (mounted) {
               _showSnackBar(
                 isDanger
                     ? "Data lokal berhasil di-reset sepenuhnya."
@@ -485,7 +653,7 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
               );
             }
           } catch (e) {
-            if (context.mounted) {
+            if (mounted) {
               _showSnackBar("Gagal membersihkan data: $e");
             }
           }
@@ -499,5 +667,149 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
         ),
       ),
     );
+  }
+
+  void _showBackupOptions() {
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final userProvider = context.watch<UserProvider>();
+          final int currentInterval = userProvider.backupInterval;
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: const Text(
+              "Pencadangan Data",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: _isBackingUp
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.cloud_upload, color: Colors.blue),
+                  title: const Text(
+                    "Cadangkan Sekarang",
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  onTap: _isBackingUp
+                      ? null
+                      : () {
+                          Navigator.pop(ctx);
+                          _runBackupTask();
+                        },
+                ),
+                const Divider(),
+                const SizedBox(height: 10),
+                const Text(
+                  "Interval Backup Otomatis",
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: [7, 30, 90].contains(currentInterval)
+                          ? currentInterval
+                          : 7,
+                      isExpanded: true,
+                      items: const [
+                        DropdownMenuItem(
+                          value: 7,
+                          child: Text("Setiap 7 Hari"),
+                        ),
+                        DropdownMenuItem(
+                          value: 30,
+                          child: Text("Setiap 30 Hari"),
+                        ),
+                        DropdownMenuItem(
+                          value: 90,
+                          child: Text("Setiap 90 Hari"),
+                        ),
+                      ],
+                      onChanged: (value) async {
+                        if (value != null) {
+                          await context.read<UserProvider>().setBackupInterval(
+                            value,
+                          );
+                          setDialogState(() {});
+                          _showSnackBar("Backup otomatis diatur: $value hari");
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Tutup"),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _toggleReminders(bool value) async {
+    setState(() {
+      _isReminderActive = value;
+    });
+
+    final notificationService = NotificationService();
+
+    if (value) {
+      // Jika dinyalakan (On)
+      await notificationService.initNotification();
+
+      await notificationService.scheduleDailyNotification(
+        id: 1,
+        title: "Waktunya Sarapan! 🥣",
+        body: "Ayo catat sarapanmu.",
+        hour: 7,
+        minute: 30,
+      );
+      await notificationService.scheduleDailyNotification(
+        id: 2,
+        title: "Makan Siang 🍱",
+        body: "Jangan lupa isi energimu siang ini.",
+        hour: 12,
+        minute: 30,
+      );
+      await notificationService.scheduleDailyNotification(
+        id: 3,
+        title: "Makan Malam 🥗",
+        body: "Waktunya makan malam ringan.",
+        hour: 19,
+        minute: 0,
+      );
+
+      _showSnackBar("Pengingat makan otomatis aktif! 🔔");
+    } else {
+      // Jika dimatikan (Off)
+      await notificationService.cancelAllNotifications();
+      _showSnackBar("Pengingat makan dinonaktifkan. 🔕");
+    }
   }
 }

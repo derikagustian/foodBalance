@@ -75,8 +75,28 @@ class DBHelper {
 
     return await db.delete(
       'food_diary',
-      where: 'time < ?',
-      whereArgs: [limitDate.toIso8601String()],
+      where: 'time < ? AND firebase_id IS NOT NULL AND firebase_id != ?',
+      whereArgs: [limitDate.toIso8601String(), ''],
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingFood() async {
+    Database db = await database;
+
+    return await db.query(
+      'food_diary',
+      where: 'firebase_id IS NULL OR firebase_id = ?',
+      whereArgs: [''],
+    );
+  }
+
+  Future<int> updateFirebaseId(int localId, String firebaseId) async {
+    Database db = await database;
+    return await db.update(
+      'food_diary',
+      {'firebase_id': firebaseId},
+      where: 'id = ?',
+      whereArgs: [localId],
     );
   }
 }

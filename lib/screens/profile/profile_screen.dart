@@ -667,7 +667,6 @@ class _ProfilePageState extends State<ProfilePage> {
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  // Tampilkan instruksi jika data belum lengkap
                   !isComplete ? "Data Profil Belum Lengkap" : estimasi,
                   textAlign: TextAlign.center,
                   style: TextStyle(

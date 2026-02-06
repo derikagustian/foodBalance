@@ -39,8 +39,7 @@ class UserProvider extends ChangeNotifier {
   // 2. CONSTRUCTOR & INITIALIZATION
   // ==========================================
   UserProvider() {
-    loadData();
-    loadProfile();
+    _initializeProvider();
   }
 
   // ==========================================
@@ -88,11 +87,10 @@ class UserProvider extends ChangeNotifier {
     DateTime? manualTime,
   }) async {
     bool wasGoalReachedBefore = totalConsumedCalories >= _caloriesTarget;
-
     final waktuSimpan = manualTime ?? DateTime.now();
     String kategori = tentukanKategori(waktuSimpan);
 
-    final foodMap = {
+    final Map<String, dynamic> foodMap = {
       'name': name,
       'calories': calories,
       'protein': protein,
@@ -100,14 +98,13 @@ class UserProvider extends ChangeNotifier {
       'carb': carb,
       'category': kategori,
       'time': waktuSimpan.toIso8601String(),
-      'firebase_id': null,
     };
 
     String? firebaseId = await _firebaseService.backupFoodItem(foodMap);
+
     foodMap['firebase_id'] = firebaseId;
 
     await _dbHelper.insertFood(foodMap);
-    await _firebaseService.backupFoodItem(foodMap);
 
     await loadData();
 
@@ -367,7 +364,46 @@ class UserProvider extends ChangeNotifier {
   }
 
   // ==========================================
-  // 11. LOGIKA DATA HARI INI
+  // 11. LOGIKA SYNC PENDING (LOGKAL KE CLOUD)
+  // ==========================================
+  bool _isSyncing = false;
+  bool get isSyncing => _isSyncing;
+
+  Future<void> syncPendingData() async {
+    if (_isSyncing) return;
+
+    final pendingItems = await _dbHelper.getPendingFood();
+    if (pendingItems.isEmpty) return;
+
+    _isSyncing = true;
+    notifyListeners();
+
+    for (var item in pendingItems) {
+      try {
+        final Map<String, dynamic> dataToUpload = Map.from(item);
+        final int localId = dataToUpload['id'];
+
+        // Bersihkan data sebelum upload
+        dataToUpload.remove('id');
+        dataToUpload.remove('firebase_id');
+
+        String? fId = await _firebaseService.backupFoodItem(dataToUpload);
+
+        if (fId != null) {
+          await _dbHelper.updateFirebaseId(localId, fId);
+        }
+      } catch (e) {
+        debugPrint("Gagal sinkron item: $e");
+      }
+    }
+
+    _isSyncing = false;
+    await loadData();
+    notifyListeners();
+  }
+
+  // ==========================================
+  // 12. LOGIKA DATA HARI INI
   // ==========================================
   List<Map<String, dynamic>> get todayFoodDiary {
     final now = DateTime.now();
@@ -382,7 +418,7 @@ class UserProvider extends ChangeNotifier {
   }
 
   // ==========================================
-  // 12. LOGIKA STORAGE (MENGGUNAKAN SERVICE)
+  // 13. LOGIKA STORAGE (MENGGUNAKAN SERVICE)
   // ==========================================
   Future<void> loadProfile() async {
     final data = await _storageService.loadProfileFromPrefs();
@@ -400,7 +436,7 @@ class UserProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _saveProfileToPrefs() async {
+  Future<void> _saveProfileToPrefs({bool syncToFirebase = true}) async {
     final profileMap = {
       'berat': berat,
       'tinggi': tinggi,
@@ -412,13 +448,17 @@ class UserProvider extends ChangeNotifier {
       'targetDate': _targetDate?.toIso8601String(),
     };
 
+    // Simpan ke SharedPreferences (Lokal)
     await _storageService.saveProfileToPrefs(profileMap);
 
-    await _firebaseService.syncProfile(profileMap);
+    // HANYA kirim ke Firebase jika diinstruksikan (Default: true)
+    if (syncToFirebase) {
+      await _firebaseService.syncProfile(profileMap);
+    }
   }
 
   // ==========================================
-  // 13. LOGIKA WEEKLY (GRAFIK & AI)
+  // 14. LOGIKA WEEKLY (GRAFIK & AI)
   // ==========================================
   List<double> get weeklyCalorieData {
     List<double> dailyTotals = List.filled(7, 0.0);
@@ -460,7 +500,7 @@ class UserProvider extends ChangeNotifier {
   }
 
   // ==========================================
-  // 14. PEMANGGILAN AI SERVICE
+  // 15. PEMANGGILAN AI SERVICE
   // ==========================================
   String? _aiInsight;
   bool _isLoadingAI = false;
@@ -490,7 +530,7 @@ class UserProvider extends ChangeNotifier {
   }
 
   // ==========================================
-  // 15. LOGIKA CLEANUP
+  // 16. LOGIKA CLEANUP
   // ==========================================
   Future<void> cleanupData(int days) async {
     try {
@@ -515,7 +555,7 @@ class UserProvider extends ChangeNotifier {
   }
 
   // ==========================================
-  // 16. LOGIKA UPDATE WAKTU TARGET CAPAIAN
+  // 17. LOGIKA UPDATE WAKTU TARGET CAPAIAN
   // ==========================================
   void _updateEstimasiWaktu() {
     // Jika profil belum lengkap, jangan set estimasi waktu dulu
@@ -544,13 +584,19 @@ class UserProvider extends ChangeNotifier {
   }
 
   // ==========================================
-  // 16. LOGIKA SINKRONISASI AKUN
+  // 18. LOGIKA SINKRONISASI AKUN
   // ==========================================
   Future<void> syncDataFromFirebase() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || user.isAnonymous) return;
+    if (_isSyncing) return;
+
+    _isSyncing = true;
+    notifyListeners();
 
     try {
+      await syncPendingData();
+
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -558,7 +604,6 @@ class UserProvider extends ChangeNotifier {
 
       if (doc.exists) {
         final data = doc.data()!;
-
         if (data['profile'] != null) {
           final p = data['profile'] as Map<String, dynamic>;
 
@@ -574,7 +619,7 @@ class UserProvider extends ChangeNotifier {
           }
 
           _updateEstimasiWaktu();
-          await _saveProfileToPrefs();
+          await _saveProfileToPrefs(syncToFirebase: false);
         }
 
         final foodSnapshot = await FirebaseFirestore.instance
@@ -583,9 +628,9 @@ class UserProvider extends ChangeNotifier {
             .collection('food_diary')
             .get();
 
-        if (foodSnapshot.docs.isNotEmpty) {
-          await _dbHelper.deleteAllFood();
+        await _dbHelper.deleteAllFood();
 
+        if (foodSnapshot.docs.isNotEmpty) {
           for (var doc in foodSnapshot.docs) {
             final foodData = doc.data();
 
@@ -597,16 +642,92 @@ class UserProvider extends ChangeNotifier {
               'carb': foodData['carb'],
               'category': foodData['category'],
               'time': foodData['time'],
+              'firebase_id': doc.id,
             });
           }
           await loadData();
         }
 
         notifyListeners();
-        debugPrint("Sync Complete: Profil & Riwayat Makan berhasil ditarik.");
+        debugPrint("Sync Berhasil: Data lokal sekarang identik dengan Cloud.");
       }
     } catch (e) {
-      debugPrint("Error Sync: $e");
+      debugPrint("Error sync: $e");
+    } finally {
+      _isSyncing = false;
+      notifyListeners();
+    }
+  }
+
+  int _backupInterval = 30;
+  int get backupInterval => _backupInterval;
+
+  bool _isAutoBackingUp = false;
+  bool get isAutoBackingUp => _isAutoBackingUp;
+
+  Future<void> setBackupInterval(int days) async {
+    _backupInterval = days;
+    await _storageService.saveBackupInterval(days);
+    notifyListeners();
+  }
+
+  Future<void> checkAndRunAutoBackup() async {
+    final lastBackupStr = await _storageService.getLastBackupDate();
+
+    if (lastBackupStr == null) {
+      await runFullBackup();
+      return;
+    }
+
+    final now = DateTime.now();
+    final lastBackup = DateTime.parse(lastBackupStr);
+
+    final today = DateTime(now.year, now.month, now.day);
+    final lastBackupDateOnly = DateTime(
+      lastBackup.year,
+      lastBackup.month,
+      lastBackup.day,
+    );
+
+    final daysSinceLastBackup = today.difference(lastBackupDateOnly).inDays;
+
+    if (daysSinceLastBackup >= _backupInterval) {
+      debugPrint(
+        "🚀 Menjalankan Backup Otomatis (Interval: $_backupInterval hari)",
+      );
+      await runFullBackup();
+    }
+  }
+
+  Future<void> runFullBackup() async {
+    _isAutoBackingUp = true;
+    notifyListeners();
+
+    try {
+      await syncPendingData();
+      await _storageService.saveLastBackupDate(
+        DateTime.now().toIso8601String(),
+      );
+    } finally {
+      _isAutoBackingUp = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _initializeProvider() async {
+    try {
+      await Future.wait([loadData(), loadProfile()]);
+
+      final savedInterval = await _storageService.getBackupInterval();
+      _backupInterval = savedInterval ?? 30;
+
+      Future.delayed(const Duration(seconds: 5), () async {
+        await checkAndRunAutoBackup();
+      });
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Error saat inisialisasi Provider: $e");
     }
   }
 }
