@@ -1,7 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart' as google_auth;
 import 'package:flutter/material.dart';
-import 'package:foodbalance/main.dart'; // Pastikan path MainNavigation benar
+import 'package:foodbalance/main.dart';
+import 'package:flutter/services.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -45,7 +46,11 @@ class _LoginPageState extends State<LoginPage> {
       await FirebaseAuth.instance.signInWithCredential(credential);
       _navigateToMain();
     } catch (e) {
-      _showError("Google Login Gagal: $e");
+      if (e is PlatformException) {
+        _showError("Error Code: ${e.code}\nMessage: ${e.message}");
+      } else {
+        _showError("Google Login Gagal: $e");
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

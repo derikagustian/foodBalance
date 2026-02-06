@@ -202,7 +202,7 @@ class MoodCard extends StatelessWidget {
                       const SizedBox(height: 10),
                       Text(
                         text,
-                        textAlign: TextAlign.center,
+                        textAlign: TextAlign.left,
                         style: const TextStyle(
                           fontSize: 16,
                           height: 1.6,

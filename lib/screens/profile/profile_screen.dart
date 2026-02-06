@@ -463,6 +463,28 @@ class _ProfilePageState extends State<ProfilePage> {
         GestureDetector(
           onTap: () {
             if (_isEditable) {
+              if (_usiaController.text.isEmpty ||
+                  _tinggiController.text.isEmpty ||
+                  _beratController.text.isEmpty ||
+                  _jenisKelamin == null) {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text("Data tidak boleh kosong!"),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    margin: const EdgeInsets.only(
+                      bottom: 20,
+                      right: 20,
+                      left: 20,
+                    ),
+                  ),
+                );
+                return;
+              }
+
               double bb = double.tryParse(_beratController.text) ?? 0;
               double tb = double.tryParse(_tinggiController.text) ?? 0;
               int usia = int.tryParse(_usiaController.text) ?? 0;
@@ -482,10 +504,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 goal: goal,
               );
 
-              // 3. Matikan mode edit (Update UI)
               setState(() => _isEditable = false);
 
-              // Tampilkan Notifikasi
               ScaffoldMessenger.of(context).hideCurrentSnackBar();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(

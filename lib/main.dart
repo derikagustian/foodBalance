@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:foodbalance/screens/scan/ai_scan_screen.dart';
 import 'package:provider/provider.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/diary/daily/daily_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/diary/weekly/weekly_screen.dart';
 import 'screens/auth/login_screen.dart';
-import 'screens/scan/barcodeScan_screen.dart';
 import 'package:foodbalance/screens/splash_screen.dart';
 
 import 'package:intl/date_symbol_data_local.dart';
@@ -32,6 +32,8 @@ void main() async {
 
   await initializeDateFormatting('id_ID', null);
   VisibilityDetectorController.instance.updateInterval = Duration.zero;
+
+  FlutterNativeSplash.remove();
 
   Widget initialScreen = FirebaseAuth.instance.currentUser == null
       ? const LoginPage()
@@ -98,9 +100,7 @@ class _MainNavigationState extends State<MainNavigation> {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => const BarcodeScanPage(),
-                    ),
+                    MaterialPageRoute(builder: (context) => const AiScanPage()),
                   );
                 },
                 backgroundColor: primaryGreen,

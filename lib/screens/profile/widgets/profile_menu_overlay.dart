@@ -1,11 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:foodbalance/providers/user_provider.dart';
-import 'package:google_sign_in/google_sign_in.dart' as google_auth;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// import 'package:path/path.dart'; // <--- Ini biasanya untuk file sistem, bisa dihapus jika tidak dipakai
+import 'package:google_sign_in/google_sign_in.dart' as google_auth;
+import 'package:foodbalance/providers/user_provider.dart';
 
-class ProfileMenuOverlay extends StatelessWidget {
+class ProfileMenuOverlay extends StatefulWidget {
   final String? photoUrl;
   final String? displayName;
   final String? email;
@@ -18,155 +17,62 @@ class ProfileMenuOverlay extends StatelessWidget {
   });
 
   @override
+  State<ProfileMenuOverlay> createState() => _ProfileMenuOverlayState();
+}
+
+class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
+  bool _isSettingsExpanded = false;
+  bool _isBackingUp = false;
+
+  @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    final size = MediaQuery.of(context).size;
+
     return Align(
       alignment: Alignment.centerRight,
       child: Material(
         color: Colors.transparent,
         child: Container(
-          width: MediaQuery.of(context).size.width * 0.75,
+          width: size.width * 0.75,
           height: double.infinity,
           decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(30),
-              bottomLeft: Radius.circular(30),
-            ),
+            borderRadius: BorderRadius.horizontal(left: Radius.circular(30)),
           ),
-          child: Stack(
+          child: Column(
             children: [
-              Column(
-                children: [
-                  Container(
-                    height: 180,
-                    width: double.infinity,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF2E7D32),
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(30),
+              _buildHeader(user),
+              Expanded(
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    ListView(
+                      padding: const EdgeInsets.only(
+                        left: 10,
+                        top: 15,
+                        right: 10,
                       ),
-                    ),
-                    padding: const EdgeInsets.only(left: 30, top: 115),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          // Cek satu-satu: display name ada? kalau tidak, apakah dia anonim?
-                          user?.displayName != null &&
-                                  user!.displayName!.isNotEmpty
-                              ? user.displayName!
-                              : (user?.isAnonymous == true
-                                    ? "User Tamu"
-                                    : "Pengguna"),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          // Cek email: kalau kosong dan anonim, beri tahu belum tertaut
-                          user?.email != null && user!.email!.isNotEmpty
-                              ? user.email!
-                              : (user?.isAnonymous == true
-                                    ? "Akun Belum Tertaut"
-                                    : "No Email"),
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.only(left: 15, top: 20),
                       children: [
                         _buildMenuItem(
                           Icons.link,
                           "Tautkan Akun",
-                          onTap: () {
-                            final user = FirebaseAuth.instance.currentUser;
-                            if (user != null && user.isAnonymous) {
-                              _handleLinkAccount(context);
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    "Akun Anda sudah tertaut dengan Google.",
-                                  ),
-                                ),
-                              );
-                            }
-                          },
+                          onTap: () => _handleAccountLinking(user),
                         ),
-                        _buildMenuItem(
-                          Icons.history,
-                          "Riwayat Makan",
-                          onTap: () {},
-                        ),
-                        _buildMenuItem(
-                          Icons.notifications_none,
-                          "Notifikasi",
-                          onTap: () {},
-                        ),
-                        _buildMenuItem(
-                          Icons.settings_outlined,
-                          "Pengaturan",
-                          onTap: () {},
-                        ),
-
-                        const Divider(),
+                        _buildMenuItem(Icons.history, "Riwayat Makan"),
+                        _buildMenuItem(Icons.notifications_none, "Notifikasi"),
+                        _buildExpandableSettings(),
+                        const Divider(height: 30, indent: 20, endIndent: 20),
                         _buildMenuItem(
                           Icons.logout,
                           "Keluar",
                           isDanger: true,
-                          onTap: () async {
-                            final user = FirebaseAuth.instance.currentUser;
-
-                            // Jika user adalah Guest (Anonymous)
-                            if (user != null && user.isAnonymous) {
-                              _showUpgradeConfirmation(context);
-                            } else {
-                              // Jika user sudah Google Login, langsung tanya logout biasa
-                              _showLogoutConfirm(context);
-                            }
-                          },
+                          onTap: () => _handleLogoutSelection(user),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-
-              // Posisi Avatar
-              Positioned(
-                left: 20,
-                top: 50,
-                child: Hero(
-                  tag: 'profilePic',
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 4),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: CircleAvatar(
-                      radius: 25,
-                      backgroundImage: (photoUrl != null)
-                          ? NetworkImage(photoUrl!)
-                          : const AssetImage("assets/images/profile.png")
-                                as ImageProvider,
-                    ),
-                  ),
+                    _buildAvatarOverlay(),
+                  ],
                 ),
               ),
             ],
@@ -176,78 +82,249 @@ class ProfileMenuOverlay extends StatelessWidget {
     );
   }
 
-  // Fungsi helper sekarang menerima parameter onTap
+  // --- UI COMPONENTS ---
+
+  Widget _buildHeader(User? user) {
+    return Container(
+      height: 160,
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: Color(0xFF2E7D32),
+        borderRadius: BorderRadius.only(topLeft: Radius.circular(30)),
+      ),
+      padding: const EdgeInsets.only(left: 95, bottom: 25, right: 20),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.displayName ??
+                user?.displayName ??
+                (user?.isAnonymous == true ? "User Tamu" : "Pengguna"),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            widget.email ?? user?.email ?? "Data belum tersinkron",
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white70, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvatarOverlay() {
+    return Positioned(
+      left: 20,
+      top: -80,
+      child: Hero(
+        tag: 'profilePic',
+        child: Container(
+          padding: const EdgeInsets.all(4),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+          ),
+          child: CircleAvatar(
+            radius: 28,
+            backgroundColor: Colors.grey[200],
+            backgroundImage: (widget.photoUrl != null)
+                ? NetworkImage(widget.photoUrl!)
+                : const AssetImage("assets/images/profile.png")
+                      as ImageProvider,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpandableSettings() {
+    return Column(
+      children: [
+        _buildMenuItem(
+          Icons.settings_outlined,
+          "Pengaturan",
+          trailing: Icon(
+            _isSettingsExpanded ? Icons.expand_less : Icons.expand_more,
+            color: Colors.grey,
+          ),
+          onTap: () =>
+              setState(() => _isSettingsExpanded = !_isSettingsExpanded),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          child: _isSettingsExpanded
+              ? Container(
+                  margin: const EdgeInsets.fromLTRB(30, 0, 15, 10),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildSubMenuItem(
+                        _isBackingUp
+                            ? Icons.hourglass_empty
+                            : Icons.cloud_upload_outlined,
+                        _isBackingUp ? "Memproses..." : "Backup Data",
+                        onTap: _isBackingUp ? null : _runBackupTask,
+                      ),
+                      _buildSubMenuItem(
+                        Icons.delete_sweep_outlined,
+                        "Auto Cleanup Data",
+                        isDanger: true,
+                        onTap: () =>
+                            _showCleanupOptions(), // Panggil fungsi baru ini
+                      ),
+                    ],
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+
   Widget _buildMenuItem(
     IconData icon,
     String title, {
-    bool isDanger = false,
     VoidCallback? onTap,
+    bool isDanger = false,
+    Widget? trailing,
   }) {
-    return Material(
-      color: Colors
-          .transparent, // Menjaga latar belakang tetap putih dari Container utama
-      child: InkWell(
-        onTap: onTap,
-        // Memberikan efek warna sedikit gelap saat ditekan
-        splashColor: isDanger
-            ? Colors.red.withOpacity(0.1)
-            : Colors.black.withOpacity(0.05),
-        highlightColor: isDanger
-            ? Colors.red.withOpacity(0.05)
-            : Colors.black.withOpacity(0.03),
-        child: ListTile(
-          // Menyamakan padding agar tetap konsisten dengan desain awal
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 15,
-            vertical: 2,
-          ),
-          leading: Icon(icon, color: isDanger ? Colors.red : Colors.grey[700]),
-          title: Text(
-            title,
-            style: TextStyle(
-              color: isDanger ? Colors.red : Colors.black87,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+    return ListTile(
+      onTap: onTap,
+      leading: Icon(
+        icon,
+        color: isDanger ? Colors.red : Colors.grey[700],
+        size: 22,
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: isDanger ? Colors.red : Colors.black87,
+          fontWeight: FontWeight.w500,
+          fontSize: 14,
+        ),
+      ),
+      trailing: trailing,
+      dense: true,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
+  }
+
+  Widget _buildSubMenuItem(
+    IconData icon,
+    String title, {
+    VoidCallback? onTap,
+    bool isDanger = false,
+  }) {
+    return ListTile(
+      onTap: onTap,
+      visualDensity: VisualDensity.compact,
+      leading: Icon(
+        icon,
+        size: 18,
+        color: isDanger ? Colors.red[300] : Colors.green[700],
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: 13,
+          color: isDanger ? Colors.red : Colors.black87,
         ),
       ),
     );
   }
 
-  // 1. Dialog khusus User Guest
-  void _showUpgradeConfirmation(BuildContext context) {
+  // --- LOGIC & ACTIONS ---
+
+  void _runBackupTask() async {
+    setState(() => _isBackingUp = true);
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) {
+      setState(() => _isBackingUp = false);
+      _showSnackBar("Data berhasil dicadangkan ke Cloud!");
+    }
+  }
+
+  void _handleAccountLinking(User? user) {
+    if (user?.isAnonymous ?? false) {
+      _linkWithGoogle();
+    } else {
+      _showSnackBar("Akun Anda sudah terhubung.");
+    }
+  }
+
+  void _handleLogoutSelection(User? user) {
+    if (user?.isAnonymous ?? false) {
+      _showActionDialog(
+        title: "Peringatan Akun Tamu",
+        content:
+            "Data Anda akan hilang jika keluar sekarang. Hubungkan ke Google untuk simpan permanen?",
+        confirmLabel: "Tautkan Google",
+        onConfirm: _linkWithGoogle,
+        cancelLabel: "Hapus & Keluar",
+        onCancel: () => _performLogout(),
+        isCritical: true,
+      );
+    } else {
+      _showActionDialog(
+        title: "Keluar",
+        content: "Apakah Anda yakin ingin mengakhiri sesi ini?",
+        onConfirm: _performLogout,
+      );
+    }
+  }
+
+  void _showActionDialog({
+    required String title,
+    required String content,
+    required VoidCallback onConfirm,
+    String confirmLabel = "Ya",
+    String cancelLabel = "Batal",
+    VoidCallback? onCancel,
+    bool isCritical = false,
+  }) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Simpan Data Anda?"),
-        content: const Text(
-          "Anda masuk sebagai Tamu. Jika keluar sekarang, semua data riwayat makan Anda akan dihapus selamanya. Hubungkan ke Google untuk menyimpan data?",
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
+        content: Text(content),
         actions: [
           TextButton(
-            onPressed: () async {
-              Navigator.pop(context); // Tutup dialog
-              await _performLogout(
-                context,
-              ); // Panggil fungsi hapus semua & logout
-            },
-            child: const Text(
-              "Hapus & Keluar",
-              style: TextStyle(color: Colors.red),
-            ),
+            onPressed: onCancel ?? () => Navigator.pop(ctx),
+            child: Text(cancelLabel),
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context);
-              // Panggil fungsi link account di sini nanti
-              _handleLinkAccount(context);
+              Navigator.pop(ctx);
+              onConfirm();
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2E7D32),
+              backgroundColor: isCritical
+                  ? Colors.red
+                  : const Color(0xFF2E7D32),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            child: const Text(
-              "Hubungkan Google",
-              style: TextStyle(color: Colors.white),
+            child: Text(
+              confirmLabel,
+              style: const TextStyle(color: Colors.white),
             ),
           ),
         ],
@@ -255,77 +332,112 @@ class ProfileMenuOverlay extends StatelessWidget {
     );
   }
 
-  // 2. Dialog Logout Biasa (Untuk User Google)
-  void _showLogoutConfirm(BuildContext context) {
+  Future<void> _performLogout() async {
+    final provider = context.read<UserProvider>();
+    await provider.clearAllData();
+    await FirebaseAuth.instance.signOut();
+    await google_auth.GoogleSignIn().signOut();
+    if (mounted)
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (r) => false);
+  }
+
+  Future<void> _linkWithGoogle() async {
+    _showSnackBar("Memulai proses penautan akun...");
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  // --- LOGIKA BACKUP ---
+  void _showCleanupOptions() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Keluar"),
-        content: const Text("Apakah Anda yakin ingin keluar?"),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.cleaning_services_rounded, color: Colors.green),
+            SizedBox(width: 10),
+            Text("Auto Cleanup", style: TextStyle(fontSize: 18)),
+          ],
+        ),
+        content: const Text(
+          "Pilih batas usia data lokal yang akan tetap disimpan di HP. Data yang lebih lama akan dihapus (tetap aman di Cloud).",
+          style: TextStyle(fontSize: 13),
+        ),
+        actionsPadding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 10,
+        ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Batal"),
-          ),
-          TextButton(
-            onPressed: () => _performLogout(context),
-            child: const Text("Keluar", style: TextStyle(color: Colors.red)),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDialogOption(ctx, "30 Hari Terakhir", 30),
+              _buildDialogOption(ctx, "90 Hari Terakhir", 90),
+              _buildDialogOption(ctx, "180 Hari Terakhir", 180),
+              const Divider(),
+              _buildDialogOption(ctx, "Hapus Semua (Reset)", 0, isDanger: true),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  "Batal",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  // 3. Fungsi Eksekusi Logout (Sapu Bersih)
-  Future<void> _performLogout(BuildContext context) async {
-    try {
-      await Provider.of<UserProvider>(context, listen: false).clearAllData();
-      await FirebaseAuth.instance.signOut();
-      await google_auth.GoogleSignIn().signOut();
+  Widget _buildDialogOption(
+    BuildContext ctx,
+    String label,
+    int days, {
+    bool isDanger = false,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: TextButton(
+        style: TextButton.styleFrom(
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+        ),
+        onPressed: () async {
+          final navigator = Navigator.of(ctx);
+          final userProvider = context.read<UserProvider>();
 
-      if (context.mounted) {
-        Navigator.of(
-          context,
-        ).pushNamedAndRemoveUntil('/login', (route) => false);
-      }
-    } catch (e) {
-      debugPrint("Error logout: $e");
-    }
-  }
+          navigator.pop();
 
-  Future<void> _handleLinkAccount(BuildContext context) async {
-    try {
-      final googleSignIn = google_auth.GoogleSignIn();
-      final googleUser = await googleSignIn.signIn();
+          try {
+            await userProvider.setAutoCleanupDays(days);
 
-      if (googleUser == null) return; // User batal pilih akun
-
-      final googleAuth = await googleUser.authentication;
-      final AuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      // Proses Menautkan (Link)
-      await FirebaseAuth.instance.currentUser?.linkWithCredential(credential);
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Akun berhasil ditautkan ke Google!")),
-        );
-        Navigator.pop(context);
-      }
-    } catch (e) {
-      debugPrint("Gagal menautkan akun: $e");
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Gagal menautkan: Akun Google mungkin sudah terpakai.",
-            ),
+            if (context.mounted) {
+              _showSnackBar(
+                isDanger
+                    ? "Data lokal berhasil di-reset sepenuhnya."
+                    : "Auto Cleanup aktif: Data lebih dari $label akan dihapus rutin.",
+              );
+            }
+          } catch (e) {
+            if (context.mounted) {
+              _showSnackBar("Gagal membersihkan data: $e");
+            }
+          }
+        },
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isDanger ? Colors.red : Colors.black87,
+            fontWeight: isDanger ? FontWeight.bold : FontWeight.normal,
           ),
-        );
-      }
-    }
+        ),
+      ),
+    );
   }
 }

@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "387971229931-sv5tmtkopd8rr7c5f30krfbaeu3aui5o.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.foodbalance",
+            "certificate_hash": "e303f0aa337544a0e1002c68b38f8ce8d3a8dd16"
+          }
+        },
+        {
           "client_id": "387971229931-igbvhifdsatk18pmpn14lommrp6i7u9o.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -29,6 +37,13 @@
             {
               "client_id": "387971229931-igbvhifdsatk18pmpn14lommrp6i7u9o.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "387971229931-hf1tdeueiuk94a85c40fbd06t7muflbh.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.foodbalance"
+              }
             }
           ]
         }

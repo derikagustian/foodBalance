@@ -1,32 +1,30 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:foodbalance/databases/db_helper.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:foodbalance/services/ai_service.dart';
+import 'package:foodbalance/services/storage_service.dart';
+import 'package:foodbalance/services/firebase_service.dart';
 
 class UserProvider extends ChangeNotifier {
   final DBHelper _dbHelper = DBHelper();
+  final AIService _aiService = AIService();
+  final StorageService _storageService = StorageService();
+  final FirebaseService _firebaseService = FirebaseService();
 
   // ==========================================
   // 1. DATA STATE (VARIABEL UTAMA)
   // ==========================================
-
-  // Data Makanan
   List<Map<String, dynamic>> _foodDiary = [];
   List<Map<String, dynamic>> get foodDiary => _foodDiary;
 
-  // Informasi Profil & Target
   double berat = 0;
   double tinggi = 0;
   int usia = 0;
   String jenisKelamin = "";
   String tujuan = "";
 
-  // Hasil Kalkulasi
   double _caloriesTarget = 0;
   String _estimasiWaktu = "-";
 
-  // Mood State
   String _selectedMood = "";
   String _hoveredMood = "";
 
@@ -35,7 +33,6 @@ class UserProvider extends ChangeNotifier {
   // ==========================================
   // 2. CONSTRUCTOR & INITIALIZATION
   // ==========================================
-
   UserProvider() {
     loadData();
     loadProfile();
@@ -45,14 +42,8 @@ class UserProvider extends ChangeNotifier {
   // 3. LOGIKA DATABASE (CRUD)
   // ==========================================
   Future<void> loadData() async {
-    try {
-      await _dbHelper.deleteOldData(30);
-    } catch (e) {
-      debugPrint("Gagal cleanup: $e");
-    }
     final data = await _dbHelper.queryAllFood();
 
-    // Ambil semua data dan ubah format string time ke DateTime
     _foodDiary = data.map((item) {
       Map<String, dynamic> mutableItem = Map.from(item);
       if (mutableItem['time'] is String) {
@@ -71,19 +62,15 @@ class UserProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Tambahkan Method Logika Notifikasi
   void _checkCalorieGoal() {
     if (_caloriesTarget > 0 &&
         totalConsumedCalories >= _caloriesTarget &&
         !_notificationShownToday) {
-      // Cetak pesan atau panggil Local Notifications di sini
       debugPrint("NOTIFIKASI: Target tercapai! Sisa waktu: $_estimasiWaktu");
-
       _notificationShownToday = true;
     }
   }
 
-  // GANTI METHOD addFood LAMA DENGAN INI:
   void addFood({
     required String name,
     required int calories,
@@ -93,10 +80,9 @@ class UserProvider extends ChangeNotifier {
     DateTime? manualTime,
   }) async {
     final waktuSimpan = manualTime ?? DateTime.now();
-
     String kategori = tentukanKategori(waktuSimpan);
 
-    await _dbHelper.insertFood({
+    final foodMap = {
       'name': name,
       'calories': calories,
       'protein': protein,
@@ -104,7 +90,13 @@ class UserProvider extends ChangeNotifier {
       'carb': carb,
       'category': kategori,
       'time': waktuSimpan.toIso8601String(),
-    });
+    };
+
+    // 1. Simpan ke SQLite (Local)
+    await _dbHelper.insertFood(foodMap);
+
+    // 2. Simpan ke Firebase (Cloud Backup)
+    await _firebaseService.backupFoodItem(foodMap);
 
     await loadData();
   }
@@ -117,48 +109,37 @@ class UserProvider extends ChangeNotifier {
   // ==========================================
   // 4. LOGIKA PROFIL & KALKULASI TARGET
   // ==========================================
-
   double get targetKaloriHarian => _caloriesTarget;
   String get estimasiWaktu => _estimasiWaktu;
-
-  // Getter Target Makro (Dipakai oleh CalorieSummaryCard)
   double get targetKarbo => (_caloriesTarget * 0.5) / 4;
   double get targetProtein => (_caloriesTarget * 0.2) / 4;
   double get targetLemak => (_caloriesTarget * 0.3) / 9;
 
-  // Di dalam UserProvider.dart (Update fungsi kalkulasiDanSimpan)
-
-  void kalkulasiDanSimpan({
+  Future<void> kalkulasiDanSimpan({
     required double bb,
     required double tb,
     required int age,
     required String jk,
     required String goal,
   }) async {
-    // Simpan state input ke variabel class agar sinkron
     this.berat = bb;
     this.tinggi = tb;
     this.usia = age;
     this.jenisKelamin = jk;
     this.tujuan = goal;
 
-    // Rumus Mifflin-St Jeor
     double bmr = (jk == 'Laki - laki')
         ? (10 * bb) + (6.25 * tb) - (5 * age) + 5
         : (10 * bb) + (6.25 * tb) - (5 * age) - 161;
 
     double tdee = bmr * 1.2;
-
-    // Rumus Broca: Berat Ideal = (Tinggi - 100) - 10% (untuk pria) atau 15% (untuk wanita)
     double faktorPenyusut = (jk == 'Laki - laki') ? 0.10 : 0.15;
     double targetBB = (tb - 100) - ((tb - 100) * faktorPenyusut);
 
     if (goal == "Turun BB") {
       _caloriesTarget = tdee - 500;
       double selisihBB = bb - targetBB;
-      _estimasiWaktu =
-          selisihBB <=
-              0.2 // Toleransi 200 gram
+      _estimasiWaktu = selisihBB <= 0.2
           ? "Target Tercapai! 🎉"
           : "${(selisihBB / 0.5).ceil()} Minggu menuju ideal";
     } else if (goal == "Naik BB") {
@@ -172,27 +153,23 @@ class UserProvider extends ChangeNotifier {
       _estimasiWaktu = "Pertahankan kondisi saat ini";
     }
 
-    await _saveProfileToPrefs(); // SIMPAN PERMANEN
+    await _saveProfileToPrefs();
     notifyListeners();
   }
 
   // ==========================================
   // 5. LOGIKA KONSUMSI REAL-TIME (GETTER)
   // ==========================================
-
   double get totalConsumedCalories =>
       todayFoodDiary.fold(0, (sum, item) => sum + item['calories']);
-
   int get totalConsumedCarbs => todayFoodDiary.fold(
     0,
     (sum, item) => sum + (item['carb'] as num? ?? 0).toInt(),
   );
-
   int get totalConsumedProtein => todayFoodDiary.fold(
     0,
     (sum, item) => sum + (item['protein'] as num? ?? 0).toInt(),
   );
-
   int get totalConsumedFat => todayFoodDiary.fold(
     0,
     (sum, item) => sum + (item['fat'] as num? ?? 0).toInt(),
@@ -201,14 +178,11 @@ class UserProvider extends ChangeNotifier {
   // ==========================================
   // 6. LOGIKA STATISTIK & STREAK
   // ==========================================
-
   int get totalFoodItems => _foodDiary.length;
-
   int get currentStreak {
     if (_foodDiary.isEmpty) return 0;
     int streak = 0;
     DateTime checkDate = DateTime.now();
-
     while (true) {
       bool hasFood = _foodDiary.any((makanan) {
         final tgl = makanan['time'] as DateTime;
@@ -216,7 +190,6 @@ class UserProvider extends ChangeNotifier {
             tgl.month == checkDate.month &&
             tgl.year == checkDate.year;
       });
-
       if (hasFood) {
         streak++;
         checkDate = checkDate.subtract(const Duration(days: 1));
@@ -227,21 +200,17 @@ class UserProvider extends ChangeNotifier {
     return streak;
   }
 
-  int get daysWithData {
-    return _foodDiary.map((e) => (e['time'] as DateTime).day).toSet().length;
-  }
-
-  double get averageCalories {
-    if (_foodDiary.isEmpty) return 0;
-    return totalConsumedCalories / (daysWithData > 0 ? daysWithData : 1);
-  }
+  int get daysWithData =>
+      _foodDiary.map((e) => (e['time'] as DateTime).day).toSet().length;
+  double get averageCalories => _foodDiary.isEmpty
+      ? 0
+      : totalConsumedCalories / (daysWithData > 0 ? daysWithData : 1);
 
   bool isDayActive(int dayOfWeek) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final startOfWeek = today.subtract(Duration(days: today.weekday - 1));
     final targetDate = startOfWeek.add(Duration(days: dayOfWeek - 1));
-
     return _foodDiary.any((makanan) {
       final tgl = makanan['time'] as DateTime;
       return tgl.day == targetDate.day &&
@@ -251,13 +220,10 @@ class UserProvider extends ChangeNotifier {
   }
 
   // ==========================================
-  // 7. LOGIKA UI HELPER (DATE & MOOD)
+  // 7. LOGIKA UI HELPER
   // ==========================================
-
-  // Mood Getters & Setters
   String get selectedMood => _selectedMood;
   String get hoveredMood => _hoveredMood;
-
   void updateMood(String moodEmoji) {
     _selectedMood = moodEmoji;
     notifyListeners();
@@ -268,7 +234,6 @@ class UserProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Kategori Waktu
   String tentukanKategori(DateTime waktu) {
     int jam = waktu.hour;
     if (jam >= 5 && jam < 11) return "Sarapan";
@@ -277,7 +242,6 @@ class UserProvider extends ChangeNotifier {
     return "Cemilan";
   }
 
-  // Range Mingguan untuk Header
   String get weeklyRange {
     DateTime now = DateTime.now();
     DateTime monday = now.subtract(Duration(days: now.weekday - 1));
@@ -296,7 +260,6 @@ class UserProvider extends ChangeNotifier {
       "November",
       "Desember",
     ];
-
     return (monday.month == sunday.month)
         ? "${monday.day} - ${sunday.day} ${months[monday.month - 1]}"
         : "${monday.day} ${months[monday.month - 1].substring(0, 3)} - ${sunday.day} ${months[sunday.month - 1].substring(0, 3)}";
@@ -305,31 +268,20 @@ class UserProvider extends ChangeNotifier {
   // ==========================================
   // 8. LOGIKA RESET (LOGOUT)
   // ==========================================
-
   void resetUser() {
-    // Reset Data Makanan (UI State)
     _foodDiary = [];
-
-    // Reset Profil & Target
     berat = 0;
     tinggi = 0;
     usia = 0;
     jenisKelamin = "";
     tujuan = "";
-
-    // Reset Hasil Kalkulasi
     _caloriesTarget = 0;
     _estimasiWaktu = "-";
-
-    // Reset Mood
     _selectedMood = "";
     _hoveredMood = "";
-
-    // Beritahu semua widget untuk update tampilan jadi kosong
     notifyListeners();
   }
 
-  // JIKA ingin menghapus SEMUA riwayat makan di HP saat logout:
   Future<void> clearAllData() async {
     await _dbHelper.deleteAllFood();
     resetUser();
@@ -337,75 +289,32 @@ class UserProvider extends ChangeNotifier {
   }
 
   // ==========================================
-  // 9. LOGIKA MOOD TRACK
+  // 9. LOGIKA MOOD TRACK (MENGGUNAKAN SERVICE)
   // ==========================================
   bool _isLoadingAi = false;
   bool get isLoadingAi => _isLoadingAi;
 
   Future<String> getAiFoodRecommendation(String mood) async {
-    final apiKey = dotenv.env['GEMINI_API_KEY'] ?? "";
-
-    if (apiKey.isEmpty) {
-      debugPrint("Error: API Key tidak ditemukan di .env");
-      return "Konfigurasi AI belum siap. Coba cek file .env kamu!";
-    }
-
     _isLoadingAi = true;
     notifyListeners();
 
-    try {
-      final model = GenerativeModel(
-        model: 'gemini-2.5-flash-lite',
-        apiKey: apiKey,
-        safetySettings: [
-          SafetySetting(HarmCategory.harassment, HarmBlockThreshold.none),
-          SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.none),
-        ],
-      );
+    final result = await _aiService.getAiFoodRecommendation(mood, tujuan);
 
-      // Prompt yang sudah kamu buat sudah bagus, santai namun informatif
-      final prompt =
-          """
-  Role: Ahli Gizi Profesional.
-  Konteks: Pengguna sedang merasa $mood dan memiliki tujuan kesehatan: $tujuan.
-  Tugas: Rekomendasikan 1 menu makanan sehat yang spesifik.
-  Format Jawaban: 
-  - Nama Makanan: (Sebutkan namanya)
-  - Alasan: (Berikan alasan medis/kesehatan singkat kenapa cocok dengan mood $mood dalam 2 kalimat).
-  Catatan: Jangan memberikan jawaban satu kata atau reaksi singkat. Gunakan Bahasa Indonesia.
-""";
-
-      final content = [Content.text(prompt)];
-      final response = await model.generateContent(content);
-
-      _isLoadingAi = false;
-      notifyListeners();
-
-      // Membersihkan teks dari spasi berlebih atau karakter aneh jika ada
-      return response.text?.trim() ??
-          "Coba makan buah segar ya agar tetap sehat!";
-    } catch (e) {
-      debugPrint("Gemini Error: $e"); // Membantu saat debugging
-      _isLoadingAi = false;
-      notifyListeners();
-      return "Duh, AI sedang istirahat. Coba lagi nanti ya!";
-    }
+    _isLoadingAi = false;
+    notifyListeners();
+    return result;
   }
 
   // ==========================================
   // 10. LOGIKA PENDING FOOD
   // ==========================================
-  // Di dalam UserProvider
   Map<String, dynamic>? _pendingFood;
   Map<String, dynamic>? get pendingFood => _pendingFood;
-
-  // Fungsi untuk menyimpan draft scan
   void setPendingFood(Map<String, dynamic>? foodData) {
     _pendingFood = foodData;
     notifyListeners();
   }
 
-  // Fungsi untuk menghapus draft setelah disimpan atau dibatalkan
   void clearPendingFood() {
     _pendingFood = null;
     notifyListeners();
@@ -427,29 +336,129 @@ class UserProvider extends ChangeNotifier {
   }
 
   // ==========================================
-  // 11. SHARED PREFERENCES
+  // 12. LOGIKA STORAGE (MENGGUNAKAN SERVICE)
   // ==========================================
-  Future<void> _saveProfileToPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('berat', berat);
-    await prefs.setDouble('tinggi', tinggi);
-    await prefs.setInt('usia', usia);
-    await prefs.setString('jk', jenisKelamin);
-    await prefs.setString('tujuan', tujuan);
-    await prefs.setDouble('caloriesTarget', _caloriesTarget);
-    await prefs.setString('estimasiWaktu', _estimasiWaktu);
+  Future<void> loadProfile() async {
+    final data = await _storageService.loadProfileFromPrefs();
+    berat = data['berat'];
+    tinggi = data['tinggi'];
+    usia = data['usia'];
+    jenisKelamin = data['jk'];
+    tujuan = data['tujuan'];
+    _caloriesTarget = data['caloriesTarget'];
+    _estimasiWaktu = data['estimasiWaktu'];
+    notifyListeners();
   }
 
-  // Muat data profil dari SharedPreferences
-  Future<void> loadProfile() async {
-    final prefs = await SharedPreferences.getInstance();
-    berat = prefs.getDouble('berat') ?? 0;
-    tinggi = prefs.getDouble('tinggi') ?? 0;
-    usia = prefs.getInt('usia') ?? 0;
-    jenisKelamin = prefs.getString('jk') ?? "";
-    tujuan = prefs.getString('tujuan') ?? "";
-    _caloriesTarget = prefs.getDouble('caloriesTarget') ?? 0;
-    _estimasiWaktu = prefs.getString('estimasiWaktu') ?? "-";
+  Future<void> _saveProfileToPrefs() async {
+    final profileMap = {
+      'berat': berat,
+      'tinggi': tinggi,
+      'usia': usia,
+      'jk': jenisKelamin,
+      'tujuan': tujuan,
+      'caloriesTarget': _caloriesTarget,
+      'estimasiWaktu': _estimasiWaktu,
+    };
+
+    await _storageService.saveProfileToPrefs(profileMap);
+
+    await _firebaseService.syncProfile(profileMap);
+  }
+
+  // ==========================================
+  // 13. LOGIKA WEEKLY (GRAFIK & AI)
+  // ==========================================
+  List<double> get weeklyCalorieData {
+    List<double> dailyTotals = List.filled(7, 0.0);
+    DateTime today = DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+    );
+    for (var food in _foodDiary) {
+      DateTime foodDate = food['time'] as DateTime;
+      int difference = today
+          .difference(DateTime(foodDate.year, foodDate.month, foodDate.day))
+          .inDays;
+      if (difference >= 0 && difference < 7)
+        dailyTotals[6 - difference] += (food['calories'] as num).toDouble();
+    }
+    return dailyTotals;
+  }
+
+  String get _weeklyMacroAnalysis {
+    if (_foodDiary.isEmpty) return "Tidak ada data makro.";
+    double p = _foodDiary.fold(
+      0,
+      (s, i) => s + (i['protein'] as num).toDouble(),
+    );
+    double c = _foodDiary.fold(0, (s, i) => s + (i['carb'] as num).toDouble());
+    double f = _foodDiary.fold(0, (s, i) => s + (i['fat'] as num).toDouble());
+    int d = daysWithData > 0 ? daysWithData : 1;
+    return "Rata-rata: Protein ${(p / d).toStringAsFixed(1)}g, Karbo ${(c / d).toStringAsFixed(1)}g, Lemak ${(f / d).toStringAsFixed(1)}g";
+  }
+
+  String get _eatingPattern {
+    Map<String, int> counts = {};
+    for (var food in _foodDiary) {
+      String cat = food['category'] ?? 'Cemilan';
+      counts[cat] = (counts[cat] ?? 0) + 1;
+    }
+    return counts.toString();
+  }
+
+  // ==========================================
+  // 14. PEMANGGILAN AI SERVICE
+  // ==========================================
+  String? _aiInsight;
+  bool _isLoadingAI = false;
+  String? get aiInsight => _aiInsight;
+  bool get isLoadingAI => _isLoadingAI;
+
+  Future<void> fetchAIInsight() async {
+    if (_aiInsight != null) return;
+    _isLoadingAI = true;
+    notifyListeners();
+
+    final prompt =
+        """
+      Identitas: $jenisKelamin, $usia thn. Tujuan: $tujuan. Target: ${_caloriesTarget.toStringAsFixed(0)} kkal.
+      Realita: Rata-rata ${averageCalories.toStringAsFixed(0)} kkal. Pola: $_eatingPattern. Makro: $_weeklyMacroAnalysis. Tren: $weeklyCalorieData.
+      Tugas: Ahli gizi, berikan analisa kritis & santai (maks 3 kalimat). Indonesia.
+    """;
+
+    _aiInsight = await _aiService.fetchAIInsight(prompt);
+    _isLoadingAI = false;
+    notifyListeners();
+  }
+
+  void refreshAI() {
+    _aiInsight = null;
+    fetchAIInsight();
+  }
+
+  // ==========================================
+  // 15. LOGIKA CLEANUP
+  // ==========================================
+  Future<void> cleanupData(int days) async {
+    try {
+      if (days == 0) {
+        await _dbHelper.deleteAllFood();
+      } else {
+        await _dbHelper.deleteOldData(days);
+      }
+
+      await loadData();
+    } catch (e) {
+      debugPrint("Gagal cleanupData: $e");
+    }
+  }
+
+  Future<void> setAutoCleanupDays(int days) async {
+    await _storageService.saveAutoCleanupSetting(days);
+
+    await cleanupData(days);
 
     notifyListeners();
   }

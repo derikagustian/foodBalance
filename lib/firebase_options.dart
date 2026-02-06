@@ -64,6 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '387971229931',
     projectId: 'foodbalance-61ffc',
     storageBucket: 'foodbalance-61ffc.firebasestorage.app',
+    androidClientId: '387971229931-sv5tmtkopd8rr7c5f30krfbaeu3aui5o.apps.googleusercontent.com',
     iosClientId: '387971229931-hf1tdeueiuk94a85c40fbd06t7muflbh.apps.googleusercontent.com',
     iosBundleId: 'com.example.foodbalance',
   );
@@ -74,6 +75,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '387971229931',
     projectId: 'foodbalance-61ffc',
     storageBucket: 'foodbalance-61ffc.firebasestorage.app',
+    androidClientId: '387971229931-sv5tmtkopd8rr7c5f30krfbaeu3aui5o.apps.googleusercontent.com',
     iosClientId: '387971229931-hf1tdeueiuk94a85c40fbd06t7muflbh.apps.googleusercontent.com',
     iosBundleId: 'com.example.foodbalance',
   );
@@ -87,4 +89,5 @@ class DefaultFirebaseOptions {
     storageBucket: 'foodbalance-61ffc.firebasestorage.app',
     measurementId: 'G-T77JKV2BZE',
   );
+
 }
