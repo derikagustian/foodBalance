@@ -280,7 +280,7 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
     } else {
       _showActionDialog(
         title: "Keluar",
-        content: "Apakah Anda yakin ingin mengakhiri sesi ini?",
+        content: "Apakah Anda yakin ingin keluar?",
         onConfirm: _performLogout,
       );
     }
@@ -346,22 +346,20 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
     try {
       if (user != null && user.isAnonymous) {
         await firebaseService.deleteUserEntirely();
+        await provider.clearAllData();
       } else {
         await FirebaseAuth.instance.signOut();
         await google_auth.GoogleSignIn().signOut();
       }
 
-      await provider.clearAllData();
-
       if (mounted) {
-        Navigator.pop(context);
-
+        Navigator.pop(context); // Tutup loading
         Navigator.pushNamedAndRemoveUntil(context, '/login', (r) => false);
       }
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
-        _showSnackBar("Gagal memproses permintaan: $e");
+        _showSnackBar("Gagal logout: $e");
       }
     }
   }

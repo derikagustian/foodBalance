@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:foodbalance/databases/db_helper.dart';
 import 'package:foodbalance/services/ai_service.dart';
@@ -23,12 +25,13 @@ class UserProvider extends ChangeNotifier {
   String tujuan = "";
 
   double _caloriesTarget = 0;
-  String _estimasiWaktu = "-";
+  String _estimasiWaktu = "Data Belum Lengkap";
 
   String _selectedMood = "";
   String _hoveredMood = "";
 
   bool _notificationShownToday = false;
+  bool get isProfileComplete => berat > 0 && tinggi > 0 && usia > 0;
 
   DateTime? _targetDate;
 
@@ -97,7 +100,11 @@ class UserProvider extends ChangeNotifier {
       'carb': carb,
       'category': kategori,
       'time': waktuSimpan.toIso8601String(),
+      'firebase_id': null,
     };
+
+    String? firebaseId = await _firebaseService.backupFoodItem(foodMap);
+    foodMap['firebase_id'] = firebaseId;
 
     await _dbHelper.insertFood(foodMap);
     await _firebaseService.backupFoodItem(foodMap);
@@ -113,9 +120,27 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
-  void deleteFood(int id) async {
-    await _dbHelper.deleteFood(id);
-    await loadData();
+  // Di UserProvider.dart
+  void deleteFood(int localId) async {
+    // Hanya 1 parameter
+    try {
+      // Cari item lengkap berdasarkan localId dari list yang sudah ada di memori
+      final foodItem = _foodDiary.firstWhere((item) => item['id'] == localId);
+      String? fId = foodItem['firebase_id'];
+
+      // 1. Hapus di Firebase (Cloud)
+      if (fId != null && fId.isNotEmpty) {
+        await _firebaseService.deleteFoodItem(fId);
+      }
+
+      // 2. Hapus di SQLite (Lokal)
+      await _dbHelper.deleteFood(localId);
+
+      // 3. Refresh data
+      await loadData();
+    } catch (e) {
+      debugPrint("Error hapus: $e");
+    }
   }
 
   // ==========================================
@@ -145,6 +170,15 @@ class UserProvider extends ChangeNotifier {
         : (10 * bb) + (6.25 * tb) - (5 * age) - 161;
 
     double tdee = bmr * 1.2;
+
+    if (goal == "Turun BB") {
+      _caloriesTarget = tdee - 500;
+    } else if (goal == "Naik BB") {
+      _caloriesTarget = tdee + 500;
+    } else {
+      _caloriesTarget = tdee;
+    }
+
     double faktorPenyusut = (jk == 'Laki - laki') ? 0.10 : 0.15;
     double targetBB = (tb - 100) - ((tb - 100) * faktorPenyusut);
 
@@ -152,18 +186,17 @@ class UserProvider extends ChangeNotifier {
       double selisihBB = (goal == "Turun BB")
           ? (bb - targetBB)
           : (targetBB - bb);
-
       if (selisihBB <= 0.2) {
         _estimasiWaktu = "Target Tercapai! 🎉";
         _targetDate = null;
       } else {
         int totalMinggu = (selisihBB / 0.5).ceil();
-        // Simpan tanggal target (Hari ini + jumlah minggu)
         _targetDate = DateTime.now().add(Duration(days: totalMinggu * 7));
-        _updateEstimasiWaktu(); // Panggil fungsi helper
+        _updateEstimasiWaktu();
       }
     }
 
+    // 5. SIMPAN DAN NOTIFIKASI
     await _saveProfileToPrefs();
     notifyListeners();
   }
@@ -287,9 +320,10 @@ class UserProvider extends ChangeNotifier {
     jenisKelamin = "";
     tujuan = "";
     _caloriesTarget = 0;
-    _estimasiWaktu = "-";
+    _estimasiWaktu = "Data Belum Lengkap";
     _selectedMood = "";
     _hoveredMood = "";
+    _targetDate = null;
     notifyListeners();
   }
 
@@ -484,12 +518,20 @@ class UserProvider extends ChangeNotifier {
   // 16. LOGIKA UPDATE WAKTU TARGET CAPAIAN
   // ==========================================
   void _updateEstimasiWaktu() {
-    if (_targetDate == null) return;
+    // Jika profil belum lengkap, jangan set estimasi waktu dulu
+    if (!isProfileComplete) {
+      _estimasiWaktu = "Lengkapi Profil";
+      return;
+    }
+
+    if (_targetDate == null) {
+      // Jika profil lengkap tapi tidak ada targetDate (mungkin Jaga BB)
+      _estimasiWaktu = "Pertahankan Berat Badan Ideal! 🎉";
+      return;
+    }
 
     final now = DateTime.now();
     final difference = _targetDate!.difference(now);
-
-    // Menggunakan total jam dibagi 24 agar sisa 12 jam tetap dihitung 1 hari
     final sisaHari = (difference.inHours / 24).ceil();
 
     if (sisaHari <= 0) {
@@ -498,6 +540,73 @@ class UserProvider extends ChangeNotifier {
       _estimasiWaktu = "$sisaHari Hari lagi menuju ideal";
     } else {
       _estimasiWaktu = "${(sisaHari / 7).ceil()} Minggu lagi menuju ideal";
+    }
+  }
+
+  // ==========================================
+  // 16. LOGIKA SINKRONISASI AKUN
+  // ==========================================
+  Future<void> syncDataFromFirebase() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.isAnonymous) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data()!;
+
+        if (data['profile'] != null) {
+          final p = data['profile'] as Map<String, dynamic>;
+
+          berat = (p['berat'] as num?)?.toDouble() ?? 0.0;
+          tinggi = (p['tinggi'] as num?)?.toDouble() ?? 0.0;
+          usia = (p['usia'] as num?)?.toInt() ?? 0;
+          jenisKelamin = p['jk'] ?? "";
+          tujuan = p['tujuan'] ?? "";
+          _caloriesTarget = (p['caloriesTarget'] as num?)?.toDouble() ?? 0.0;
+
+          if (p['targetDate'] != null) {
+            _targetDate = DateTime.parse(p['targetDate']);
+          }
+
+          _updateEstimasiWaktu();
+          await _saveProfileToPrefs();
+        }
+
+        final foodSnapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('food_diary')
+            .get();
+
+        if (foodSnapshot.docs.isNotEmpty) {
+          await _dbHelper.deleteAllFood();
+
+          for (var doc in foodSnapshot.docs) {
+            final foodData = doc.data();
+
+            await _dbHelper.insertFood({
+              'name': foodData['name'],
+              'calories': foodData['calories'],
+              'protein': foodData['protein'],
+              'fat': foodData['fat'],
+              'carb': foodData['carb'],
+              'category': foodData['category'],
+              'time': foodData['time'],
+            });
+          }
+          await loadData();
+        }
+
+        notifyListeners();
+        debugPrint("Sync Complete: Profil & Riwayat Makan berhasil ditarik.");
+      }
+    } catch (e) {
+      debugPrint("Error Sync: $e");
     }
   }
 }

@@ -22,16 +22,34 @@ class FirebaseService {
   }
 
   // Mendukung Backup Data Makanan
-  Future<void> backupFoodItem(Map<String, dynamic> foodData) async {
-    if (userId == null) return;
+  Future<String?> backupFoodItem(Map<String, dynamic> foodMap) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+
     try {
-      await _db.collection('users').doc(userId).collection('food_diary').add({
-        ...foodData,
-        'created_at': FieldValue.serverTimestamp(),
-      });
+      DocumentReference docRef = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('food_diary')
+          .add(foodMap);
+
+      return docRef.id;
     } catch (e) {
-      print("Error Backup Food: $e");
+      debugPrint("Error backup ke Firebase: $e");
+      return null;
     }
+  }
+
+  Future<void> deleteFoodItem(String docId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('food_diary')
+        .doc(docId)
+        .delete();
   }
 
   // Reset Data di Cloud saat User Logout/Reset

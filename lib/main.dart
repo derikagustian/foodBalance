@@ -56,7 +56,6 @@ class CalorieApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true),
       initialRoute: '/',
-      // Daftarkan rute-rute di sini
       routes: {
         '/': (context) => const SplashScreen(),
         '/login': (context) => const LoginPage(),
@@ -82,6 +81,23 @@ class _MainNavigationState extends State<MainNavigation> {
     const WeeklyPage(),
     const ProfilePage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+
+    _syncUserData();
+  }
+
+  void _syncUserData() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user != null && !user.isAnonymous) {
+        context.read<UserProvider>().syncDataFromFirebase();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

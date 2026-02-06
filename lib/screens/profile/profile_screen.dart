@@ -457,6 +457,24 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  void _clearFields() {
+    setState(() {
+      _usiaController.clear();
+      _tinggiController.clear();
+      _beratController.clear();
+      _jenisKelamin = null;
+      _selectedGoalIndex = 1;
+    });
+  }
+
+  void _cancelEdit() {
+    setState(() {
+      _isEditable = false;
+      _fillControllerData(); // Mengambil data asli dari Provider
+    });
+    _showSnackBar("Perubahan dibatalkan");
+  }
+
   Widget _buildFooterButtons() {
     return Column(
       children: [
@@ -467,21 +485,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   _tinggiController.text.isEmpty ||
                   _beratController.text.isEmpty ||
                   _jenisKelamin == null) {
-                ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text("Data tidak boleh kosong!"),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    margin: const EdgeInsets.only(
-                      bottom: 20,
-                      right: 20,
-                      left: 20,
-                    ),
-                  ),
-                );
+                _showSnackBar("Data tidak boleh kosong!");
                 return;
               }
 
@@ -505,19 +509,7 @@ class _ProfilePageState extends State<ProfilePage> {
               );
 
               setState(() => _isEditable = false);
-
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text("Informasi disimpan & Kalori dihitung!"),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  margin: const EdgeInsets.only(bottom: 5, right: 20, left: 20),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+              _showSnackBar("Informasi disimpan & Kalori dihitung!");
             }
           },
           child: _buildLongButton(
@@ -526,11 +518,57 @@ class _ProfilePageState extends State<ProfilePage> {
             _isEditable ? primaryGreen : Colors.grey,
           ),
         ),
+
+        if (_isEditable) ...[
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: _clearFields,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: Colors.red.shade400, width: 1.5),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.delete_sweep_outlined,
+                    color: Colors.red.shade400,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Bersihkan Form",
+                    style: TextStyle(
+                      color: Colors.red.shade400,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+
         const SizedBox(height: 12),
-        // Tombol Edit tetap sama fungsinya
+
         GestureDetector(
-          onTap: () => setState(() => _isEditable = true),
-          child: _buildLongButton("Edit", Icons.edit_note, primaryGreen),
+          onTap: () {
+            if (_isEditable) {
+              _cancelEdit();
+            } else {
+              setState(() => _isEditable = true);
+            }
+          },
+          child: _buildLongButton(
+            _isEditable ? "Batal Edit" : "Edit Profil",
+            _isEditable ? Icons.close : Icons.edit_note,
+            _isEditable ? Colors.orange.shade800 : primaryGreen,
+          ),
         ),
       ],
     );
@@ -563,10 +601,14 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildAchievementTarget() {
-    // Mengambil data estimasi dari Provider
-    final estimasi = context.watch<UserProvider>().estimasiWaktu;
+    // 1. Ambil instance provider
+    final userProv = context.watch<UserProvider>();
 
-    // Logic sederhana: jika ada kata "Tercapai" atau "Pertahankan", anggap sukses
+    // 2. Ambil data yang dibutuhkan
+    final bool isComplete = userProv.isProfileComplete;
+    final String estimasi = userProv.estimasiWaktu;
+
+    // 3. Logika warna dan status
     bool isSuccess =
         estimasi.contains("Tercapai") || estimasi.contains("Pertahankan");
 
@@ -576,11 +618,13 @@ class _ProfilePageState extends State<ProfilePage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        // Border berubah warna kalau sukses
         border: Border.all(
-          color: isSuccess
-              ? Colors.green.withOpacity(0.5)
-              : primaryGreen.withOpacity(0.3),
+          // Jika belum lengkap pakai warna abu-abu
+          color: !isComplete
+              ? Colors.grey.withOpacity(0.3)
+              : (isSuccess
+                    ? Colors.green.withOpacity(0.5)
+                    : primaryGreen.withOpacity(0.3)),
           width: 2,
         ),
         boxShadow: [
@@ -598,34 +642,52 @@ class _ProfilePageState extends State<ProfilePage> {
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: isSuccess ? Colors.green : primaryGreen,
+              // Teks jadi abu-abu jika belum lengkap
+              color: !isComplete
+                  ? Colors.grey
+                  : (isSuccess ? Colors.green : primaryGreen),
             ),
           ),
           const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Ikon berubah kalau sukses
               Icon(
-                isSuccess ? Icons.check_circle_outline : Icons.timer_outlined,
-                color: isSuccess ? Colors.green : Colors.orange,
+                // Ikon berubah jadi tanda tanya/info jika data kosong
+                !isComplete
+                    ? Icons.help_outline
+                    : (isSuccess
+                          ? Icons.check_circle_outline
+                          : Icons.timer_outlined),
+                color: !isComplete
+                    ? Colors.grey
+                    : (isSuccess ? Colors.green : Colors.orange),
                 size: 24,
               ),
               const SizedBox(width: 8),
-              Text(
-                estimasi,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  // Teks berubah warna kalau sukses
-                  color: isSuccess ? Colors.green : Colors.black87,
+              Flexible(
+                child: Text(
+                  // Tampilkan instruksi jika data belum lengkap
+                  !isComplete ? "Data Profil Belum Lengkap" : estimasi,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: !isComplete
+                        ? Colors.grey
+                        : (isSuccess ? Colors.green : Colors.black87),
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
-            "*Estimasi berdasarkan progres sehat 0.5kg/minggu",
+          Text(
+            // Catatan kaki berubah jika data belum lengkap
+            !isComplete
+                ? "Klik 'Edit Profil' di bawah untuk melengkapi data"
+                : "*Estimasi berdasarkan progres sehat 0.5kg/minggu",
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 11,
               color: Colors.grey,
@@ -633,6 +695,18 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.only(bottom: 20, right: 20, left: 20),
       ),
     );
   }

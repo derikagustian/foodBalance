@@ -14,7 +14,7 @@ class DBHelper {
     String path = join(await getDatabasesPath(), 'food_balance.db');
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE food_diary (
@@ -25,9 +25,18 @@ class DBHelper {
             fat INTEGER,
             carb INTEGER,
             category TEXT,
-            time TEXT
+            time TEXT,
+            firebase_id TEXT 
           )
         ''');
+      },
+
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            'ALTER TABLE food_diary ADD COLUMN firebase_id TEXT',
+          );
+        }
       },
     );
   }

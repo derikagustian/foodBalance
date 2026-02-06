@@ -35,13 +35,18 @@ dev_dependencies:
 
 flutter_native_splash:
   color: "#FDF7C3"
-  image: assets/logo/FB_logo.png
+  image: assets/logo/small_logo.png
 
-  android_gravity: center
-
+  # Konfigurasi khusus untuk Android 12+ agar logo tidak terpotong
   android_12:
+    image: assets/logo/small_logo.png
     color: "#FDF7C3"
-    image: assets/logo/FB_logo.png
+    # Tambahkan padding jika logo terasa terlalu mepet ke pinggir lingkaran
+    icon_background_color: "#FDF7C3"
+
+  # Menjaga aspek rasio di platform lain
+  android: true
+  ios: true
 
 flutter:
   uses-material-design: true

@@ -52,14 +52,13 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (!mounted) return;
 
-    Widget nextScreen = FirebaseAuth.instance.currentUser == null
-        ? const LoginPage()
-        : const MainNavigation();
+    final user = FirebaseAuth.instance.currentUser;
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => nextScreen),
-    );
+    if (user == null) {
+      Navigator.pushReplacementNamed(context, '/login');
+    } else {
+      Navigator.pushReplacementNamed(context, '/main');
+    }
   }
 
   @override
