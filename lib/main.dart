@@ -22,22 +22,17 @@ void main() async {
 
   try {
     await dotenv.load(fileName: ".env");
-    debugPrint("Environment loaded successfully");
   } catch (e) {
     debugPrint("Gagal memuat .env: $e");
   }
 
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
   await initializeDateFormatting('id_ID', null);
+
   VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
   FlutterNativeSplash.remove();
-
-  Widget initialScreen = FirebaseAuth.instance.currentUser == null
-      ? const LoginPage()
-      : const MainNavigation();
 
   runApp(
     MultiProvider(
@@ -55,9 +50,21 @@ class CalorieApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true),
-      initialRoute: '/',
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const SplashScreen();
+          }
+
+          if (snapshot.hasData) {
+            return const MainNavigation();
+          }
+
+          return const LoginPage();
+        },
+      ),
       routes: {
-        '/': (context) => const SplashScreen(),
         '/login': (context) => const LoginPage(),
         '/main': (context) => const MainNavigation(),
       },

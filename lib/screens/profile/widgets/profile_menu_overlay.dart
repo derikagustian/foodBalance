@@ -212,19 +212,19 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
                         onTap: () =>
                             _showBackupOptions(), // Panggil dialog baru
                       ),
-                      _buildSubMenuItem(
-                        Icons.person_remove_outlined,
-                        "Hapus Akun Selamanya",
-                        isDanger: true,
-                        onTap: () {
-                          final user = FirebaseAuth.instance.currentUser;
-                          if (user?.isAnonymous ?? true) {
-                            _performLogout();
-                          } else {
-                            _showDeleteAccountDialog(context);
-                          }
-                        },
-                      ),
+                      // _buildSubMenuItem(
+                      //   Icons.person_remove_outlined,
+                      //   "Hapus Akun Selamanya",
+                      //   isDanger: true,
+                      //   onTap: () {
+                      //     final user = FirebaseAuth.instance.currentUser;
+                      //     if (user?.isAnonymous ?? true) {
+                      //       _performLogout();
+                      //     } else {
+                      //       _showDeleteAccountDialog(context);
+                      //     }
+                      //   },
+                      // ),
                     ],
                   ),
                 )
@@ -386,7 +386,6 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
   void _showDeleteAccountDialog(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final bool isAnonymous = user?.isAnonymous ?? true;
-    final TextEditingController passwordController = TextEditingController();
     final firebaseService = FirebaseService();
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     bool isLoading = false;
@@ -405,29 +404,11 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
                 isAnonymous ? "Hapus Sesi Tamu?" : "Hapus Akun Permanen",
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    isAnonymous
-                        ? "Semua data yang Anda catat sebagai tamu akan dihapus permanen dari cloud."
-                        : "Tindakan ini tidak dapat dibatalkan. Masukkan kata sandi Anda untuk menghapus akun dan seluruh data Cloud.",
-                    style: const TextStyle(fontSize: 14, color: Colors.black87),
-                  ),
-                  if (!isAnonymous) ...[
-                    const SizedBox(height: 20),
-                    TextField(
-                      controller: passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: "Kata Sandi",
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.lock_outline),
-                      ),
-                    ),
-                  ],
-                ],
+              content: Text(
+                isAnonymous
+                    ? "Semua data yang Anda catat sebagai tamu akan dihapus permanen."
+                    : "Apakah Anda yakin? Tindakan ini akan menghapus akun dan seluruh data Cloud Anda selamanya.",
+                style: const TextStyle(fontSize: 14, color: Colors.black87),
               ),
               actions: [
                 TextButton(
@@ -450,32 +431,38 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
                       : () async {
                           setState(() => isLoading = true);
                           try {
-                            if (!isAnonymous) {
-                              await firebaseService.reauthenticateAndDelete(
-                                passwordController.text,
-                              );
-                            } else {
-                              await firebaseService.deleteUserCloudData();
-                              await user?.delete();
-                            }
+                            // 1. Hapus Data di Firestore/Cloud
+                            await firebaseService.deleteUserCloudData();
 
+                            // 2. Hapus Akun dari Firebase Auth
+                            await user?.delete();
+
+                            // 3. Bersihkan State Lokal
                             await userProvider.clearAllData();
 
                             if (context.mounted) {
-                              Navigator.pop(context);
+                              Navigator.pop(context); // Tutup Dialog
                               Navigator.pushNamedAndRemoveUntil(
                                 context,
                                 '/login',
                                 (r) => false,
                               );
-                              _showSnackBar("Akun berhasil dihapus.");
+                              _showSnackBar("Akun dan data berhasil dihapus.");
                             }
                           } catch (e) {
                             setState(() => isLoading = false);
-                            if (context.mounted) {
+                            debugPrint("Error Delete Account: $e");
+
+                            // Catatan: Jika user sudah login terlalu lama, Firebase
+                            // terkadang tetap minta re-login demi keamanan.
+                            if (e.toString().contains(
+                              "requires-recent-login",
+                            )) {
                               _showSnackBar(
-                                "Gagal: Pastikan kata sandi benar.",
+                                "Sesi habis. Silakan logout lalu login kembali sebelum hapus akun.",
                               );
+                            } else {
+                              _showSnackBar("Gagal menghapus akun: $e");
                             }
                           }
                         },
@@ -499,10 +486,16 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
   }
 
   Future<void> _performLogout() async {
+    // 1. Simpan referensi penting sebelum masuk ke proses async
+    final navigator = Navigator.of(context, rootNavigator: true);
     final provider = context.read<UserProvider>();
     final user = FirebaseAuth.instance.currentUser;
     final firebaseService = FirebaseService();
 
+    // 2. Tutup Overlay Menu segera
+    navigator.pop();
+
+    // 3. Tampilkan Loading Dialog
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -510,24 +503,35 @@ class _ProfileMenuOverlayState extends State<ProfileMenuOverlay> {
     );
 
     try {
+      // 4. Hentikan semua notifikasi
       await NotificationService().cancelAllNotifications();
+
       if (user != null && user.isAnonymous) {
+        // Hapus data cloud & lokal untuk User Tamu
         await firebaseService.deleteUserCloudData();
-        await provider.clearAllData();
+        await provider
+            .clearAllData(); // Pastikan metode ini memanggil notifyListeners()
+        await user.delete();
       } else {
+        // Sign out biasa untuk User terdaftar
         await FirebaseAuth.instance.signOut();
         await google_auth.GoogleSignIn().signOut();
+        // Sangat disarankan untuk membersihkan data provider juga
+        await provider.clearAllData();
       }
 
+      // 5. Tutup Loading Dialog
+      if (mounted) navigator.pop();
+
+      // 6. Arahkan ke Login dan BUANG semua tumpukan screen lama
       if (mounted) {
-        Navigator.pop(context);
-        Navigator.pushNamedAndRemoveUntil(context, '/login', (r) => false);
+        navigator.pushNamedAndRemoveUntil('/login', (route) => false);
       }
     } catch (e) {
-      if (mounted) {
-        Navigator.pop(context);
-        _showSnackBar("Gagal logout: $e");
-      }
+      // Tutup loading jika terjadi error
+      if (mounted) navigator.pop();
+      debugPrint("Error logout: $e");
+      _showSnackBar("Gagal keluar: $e");
     }
   }
 

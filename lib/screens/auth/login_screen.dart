@@ -236,14 +236,6 @@ class _LoginPageState extends State<LoginPage> {
                     Colors.white.withOpacity(0.3),
                     _handleGoogleSignIn,
                   ),
-                  const SizedBox(height: 12),
-                  _buildSocialButton(
-                    context,
-                    "Continue With Apple",
-                    "assets/icons/apple.png",
-                    Colors.white.withOpacity(0.3),
-                    () => _showError("Fitur Apple Login belum diaktifkan"),
-                  ),
 
                   const SizedBox(height: 20),
 

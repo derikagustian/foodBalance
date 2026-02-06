@@ -69,6 +69,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final userProv = context.watch<UserProvider>();
     final user = FirebaseAuth.instance.currentUser;
     final String? photoUrl = user?.photoURL;
     return Scaffold(
@@ -138,7 +139,7 @@ class _ProfilePageState extends State<ProfilePage> {
               // Letakkan ini di Column dalam build() setelah GoalSection
               EntranceFaded(
                 delay: const Duration(milliseconds: 500),
-                child: _buildAchievementTarget(),
+                child: _buildAchievementTarget(userProv),
               ),
               const SizedBox(height: 20),
 
@@ -600,15 +601,10 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildAchievementTarget() {
-    // 1. Ambil instance provider
-    final userProv = context.watch<UserProvider>();
-
-    // 2. Ambil data yang dibutuhkan
+  Widget _buildAchievementTarget(UserProvider userProv) {
     final bool isComplete = userProv.isProfileComplete;
     final String estimasi = userProv.estimasiWaktu;
 
-    // 3. Logika warna dan status
     bool isSuccess =
         estimasi.contains("Tercapai") || estimasi.contains("Pertahankan");
 
@@ -699,6 +695,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _showSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
