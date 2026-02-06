@@ -99,8 +99,25 @@ class _WeeklyPageState extends State<WeeklyPage>
               const SizedBox(height: 25),
 
               AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: _buildTabContent(userProv),
+                duration: const Duration(milliseconds: 400),
+                layoutBuilder:
+                    (Widget? currentChild, List<Widget> previousChildren) {
+                      return Stack(
+                        alignment: Alignment.topCenter,
+                        children: <Widget>[
+                          ...previousChildren,
+                          if (currentChild != null) currentChild,
+                        ],
+                      );
+                    },
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
+                child: EntranceFaded(
+                  key: ValueKey<int>(_tabController.index),
+                  delay: const Duration(milliseconds: 600),
+                  child: _buildTabContent(userProv),
+                ),
               ),
 
               const SizedBox(height: 50),

@@ -71,6 +71,8 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
+  VoidCallback? onGoalReached;
+
   void addFood({
     required String name,
     required int calories,
@@ -79,6 +81,8 @@ class UserProvider extends ChangeNotifier {
     required int carb,
     DateTime? manualTime,
   }) async {
+    bool wasGoalReachedBefore = totalConsumedCalories >= _caloriesTarget;
+
     final waktuSimpan = manualTime ?? DateTime.now();
     String kategori = tentukanKategori(waktuSimpan);
 
@@ -92,13 +96,18 @@ class UserProvider extends ChangeNotifier {
       'time': waktuSimpan.toIso8601String(),
     };
 
-    // 1. Simpan ke SQLite (Local)
     await _dbHelper.insertFood(foodMap);
-
-    // 2. Simpan ke Firebase (Cloud Backup)
     await _firebaseService.backupFoodItem(foodMap);
 
     await loadData();
+
+    if (!wasGoalReachedBefore &&
+        totalConsumedCalories >= _caloriesTarget &&
+        _caloriesTarget > 0) {
+      if (onGoalReached != null) {
+        onGoalReached!();
+      }
+    }
   }
 
   void deleteFood(int id) async {
@@ -310,8 +319,9 @@ class UserProvider extends ChangeNotifier {
   // ==========================================
   Map<String, dynamic>? _pendingFood;
   Map<String, dynamic>? get pendingFood => _pendingFood;
-  void setPendingFood(Map<String, dynamic>? foodData) {
-    _pendingFood = foodData;
+
+  void setPendingFood(Map<String, dynamic> data) {
+    _pendingFood = data;
     notifyListeners();
   }
 

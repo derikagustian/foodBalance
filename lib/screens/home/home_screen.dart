@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -16,7 +17,6 @@ import 'package:foodbalance/screens/scan/ai_scan_screen.dart';
 import 'package:foodbalance/widgets/slideUp_animation.dart';
 
 class HomePage extends StatefulWidget {
-  // UBAH KE STATEFUL
   const HomePage({super.key});
 
   @override
@@ -24,11 +24,96 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  bool _isDialogShowing = false;
+
   @override
   void initState() {
     super.initState();
-    // Pemicu reset data: memuat ulang data dengan filter tanggal 'now' terbaru
-    Future.microtask(() => context.read<UserProvider>().loadData());
+
+    final userProv = Provider.of<UserProvider>(context, listen: false);
+
+    userProv.onGoalReached = () {
+      if (!_isDialogShowing) {
+        _showCelebrationDialog();
+      }
+    };
+
+    Future.microtask(() => userProv.loadData());
+  }
+
+  @override
+  void dispose() {
+    final userProv = Provider.of<UserProvider>(context, listen: false);
+    userProv.onGoalReached = null;
+    super.dispose();
+  }
+
+  void _showCelebrationDialog() {
+    // 3. Set flag ke true saat dialog muncul
+    setState(() {
+      _isDialogShowing = true;
+    });
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Lottie.asset(
+              'assets/lottie/success.json',
+              width: 250,
+              height: 250,
+              repeat: false,
+            ),
+            const Text(
+              "Goal Tercapai! 🎉",
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2E7D32),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              "Energi harianmu sudah terpenuhi. Pertahankan pola makan sehatmu ya!",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.black87),
+            ),
+            const SizedBox(height: 25),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E7D32),
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                ),
+                onPressed: () {
+                  // 4. Set flag kembali ke false saat dialog ditutup
+                  setState(() {
+                    _isDialogShowing = false;
+                  });
+                  Navigator.pop(context);
+                },
+                child: const Text(
+                  "Luar Biasa!",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -36,7 +121,6 @@ class _HomePageState extends State<HomePage> {
     final userProv = context.watch<UserProvider>();
     final user = FirebaseAuth.instance.currentUser;
 
-    // Tanggal akan otomatis update ke hari ini setiap build dijalankan
     final tanggalFormatted = DateFormat(
       'EEEE, d MMMM',
       'id_ID',
@@ -66,21 +150,24 @@ class _HomePageState extends State<HomePage> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.info_outline, color: Colors.orange),
+                        const Icon(
+                          Icons.auto_awesome,
+                          color: Colors.orange,
+                        ), // Ikon AI
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                "Ada hasil scan yang belum disimpan",
+                                "Hasil Scan AI Belum Disimpan",
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
                                 ),
                               ),
                               Text(
-                                "Scan: ${userProv.pendingFood!['name']} (${DateFormat('HH:mm').format(userProv.pendingFood!['scanTime'])})",
+                                "${(userProv.pendingFood!['items'] as List).length} item makanan terdeteksi",
                                 style: const TextStyle(fontSize: 12),
                               ),
                             ],
@@ -89,17 +176,16 @@ class _HomePageState extends State<HomePage> {
                         TextButton(
                           onPressed: () {
                             final draft = userProv.pendingFood!;
+
                             AiScanPage.showResultSheet(
                               context: context,
-                              name: draft['name'],
-                              cal: draft['calories'],
-                              prot: draft['protein'],
-                              fat: draft['fat'],
-                              carb: draft['carb'],
+                              items: List<Map<String, dynamic>>.from(
+                                draft['items'],
+                              ),
                               scanTime: draft['scanTime'],
                             );
                           },
-                          child: const Text("Lihat"),
+                          child: const Text("Detail"),
                         ),
                         IconButton(
                           icon: const Icon(Icons.close, size: 18),
